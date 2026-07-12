@@ -1,406 +1,508 @@
 {
-  "name": "Jasfo Export & Delivery Pipeline",
+  "name": "Jasfo Export Delivery",
   "nodes": [
     {
-      "id": "wb-001",
-      "name": "Receive Score Card Data",
+      "id": "webhook-1",
+      "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1.1,
-      "position": [250, 400],
-      "credentials": {},
+      "typeVersion": 1,
+      "position": [0, 300],
+      "webhookId": "jasfo-export",
       "parameters": {
-        "httpMethod": "POST",
-        "path": "jasfo-export-delivery",
-        "responseMode": "lastNode",
-        "responseData": "allEntries",
-        "options": {
-          "rawBody": true
-        }
-      },
-      "webhookId": "jasfo-export-delivery"
-    },
-    {
-      "id": "pg-scorecard",
-      "name": "Get Score Card",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [480, 150],
-      "credentials": {
-        "postgres": {
-          "id": "1",
-          "name": "Supabase DB"
-        }
-      },
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT * FROM score_cards WHERE id = $1",
-        "queryParams": {
-          "values": [
-            {
-              "string": "={{ $json.score_card_id }}"
-            }
-          ]
-        },
-        "additionalFields": {
-          "nodeVersion": "2"
-        }
+        "path": "jasfo-export",
+        "responseMode": "onReceived",
+        "responseData": "noData",
+        "options": {}
       }
     },
     {
-      "id": "pg-aiextract",
-      "name": "Get AI Extraction",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [480, 350],
-      "credentials": {
-        "postgres": {
-          "id": "1",
-          "name": "Supabase DB"
-        }
-      },
+      "id": "http-1",
+      "name": "Get Score Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [250, 300],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT * FROM ai_extractions WHERE company_domain = $1 AND run_id = $2",
-        "queryParams": {
-          "values": [
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/score_cards?id=eq.{{ $node[\"Webhook\"].json.score_card_id }}&select=*",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "string": "={{ $json.company_domain }}"
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
-              "string": "={{ $json.run_id }}"
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             }
           ]
         },
-        "additionalFields": {
-          "nodeVersion": "2"
-        }
+        "options": {}
       }
     },
     {
-      "id": "pg-company",
-      "name": "Get Company",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [480, 550],
-      "credentials": {
-        "postgres": {
-          "id": "1",
-          "name": "Supabase DB"
-        }
-      },
+      "id": "http-2",
+      "name": "Get AI Extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT * FROM companies WHERE domain = $1",
-        "queryParams": {
-          "values": [
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/ai_extractions?company_domain=eq.{{ $node[\"Webhook\"].json.company_domain }}&run_id=eq.{{ $node[\"Webhook\"].json.run_id }}&select=*",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "string": "={{ $json.company_domain }}"
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             }
           ]
         },
-        "additionalFields": {
-          "nodeVersion": "2"
-        }
+        "options": {}
       }
     },
     {
-      "id": "merge-sca",
-      "name": "Merge Score Card + AI",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [700, 250],
+      "id": "http-3",
+      "name": "Get Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 300],
       "parameters": {
-        "mode": "combine",
-        "combinationMode": "merge"
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/company_queue?company_domain=eq.{{ $node[\"Webhook\"].json.company_domain }}&select=*",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            }
+          ]
+        },
+        "options": {}
       }
     },
     {
-      "id": "merge-cmp",
-      "name": "Merge + Company Data",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [700, 450],
-      "parameters": {
-        "mode": "combine",
-        "combinationMode": "merge"
-      }
-    },
-    {
-      "id": "code-prep",
-      "name": "Prepare Data",
+      "id": "code-1",
+      "name": "Merge Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [900, 400],
+      "position": [1000, 300],
       "parameters": {
-        "jsCode": "// Normalize and prepare all merged data for export formatting\nconst input = $input.first().json;\n\nconst get = (field, fallback) => {\n  return input[field] !== undefined && input[field] !== null ? input[field] : fallback;\n};\n\nreturn [{\n  run_id: get('run_id', ''),\n  company_domain: get('company_domain', ''),\n  export_format: get('export_format', 'json'),\n  score_card_id: get('score_card_id', ''),\n\n  company_name: get('name', '') || get('company_name', '') || get('company', ''),\n  description: get('description', ''),\n  founded_year: get('founded_year', ''),\n  employees: get('employees', ''),\n  headquarters: get('headquarters', ''),\n  website: get('website', ''),\n  logo_url: get('logo_url', ''),\n\n  score: get('total_score', 0) || get('score', 0),\n  confidence: get('confidence', ''),\n  product_score: get('product_score', 0) || get('product', 0),\n  icp_score: get('icp_score', 0) || get('icp', 0),\n  team_score: get('team_score', 0) || get('team', 0),\n  business_model_score: get('business_model_score', 0) || get('business_model', 0),\n  funding_score: get('funding_score', 0) || get('funding', 0),\n  growth_score: get('growth_score', 0) || get('growth', 0),\n  market_score: get('market_score', 0) || get('market', 0),\n  risk_score: get('risk_score', 0) || get('risk', 0),\n\n  product_summary: get('product_summary', ''),\n  icp_analysis: get('icp_analysis', ''),\n  team_analysis: get('team_analysis', ''),\n  funding_summary: get('funding_summary', ''),\n  growth_indicators: get('growth_indicators', ''),\n  market_analysis: get('market_analysis', ''),\n  risk_factors: get('risk_factors', '') || get('risk_summary', 'No risk factors identified.'),\n  products: get('products', '[]'),\n\n  report_url: get('report_url', ''),\n}]"
+        "language": "javascript",
+        "code": "const scoreCard = $node[\"Get Score Card\"].json;\nconst aiExtraction = $node[\"Get AI Extraction\"].json;\nconst company = $node[\"Get Company\"].json;\nconst webhook = $node[\"Webhook\"].json;\n\nconst scoreCardData = Array.isArray(scoreCard) ? (scoreCard[0] || {}) : (scoreCard || {});\nconst aiExtractionData = Array.isArray(aiExtraction) ? (aiExtraction[0] || {}) : (aiExtraction || {});\nconst companyData = Array.isArray(company) ? (company[0] || {}) : (company || {});\n\nreturn {\n  run_id: webhook.run_id,\n  company_domain: webhook.company_domain,\n  export_format: webhook.export_format,\n  score_card_id: webhook.score_card_id,\n  score_card: scoreCardData,\n  ai_extraction: aiExtractionData,\n  company: companyData\n};"
       }
     },
     {
-      "id": "switch-fmt",
-      "name": "Route Format",
+      "id": "switch-1",
+      "name": "Switch Route Format",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 2,
-      "position": [1100, 400],
+      "position": [1250, 300],
       "parameters": {
         "dataType": "string",
-        "value1": "={{ $json.export_format }}",
-        "rules": [
-          {
-            "outputKey": "json",
-            "value2": "json"
-          },
-          {
-            "outputKey": "csv",
-            "value2": "csv"
-          },
-          {
-            "outputKey": "markdown",
-            "value2": "markdown"
-          },
-          {
-            "outputKey": "telegram",
-            "value2": "telegram"
-          }
-        ],
-        "fallbackOutput": "json"
+        "parameters": {
+          "conditions": [
+            {
+              "id": "route-json",
+              "operator": {
+                "type": "string",
+                "parameters": {
+                  "value1": "={{ $json.export_format }}",
+                  "value2": "json"
+                }
+              }
+            },
+            {
+              "id": "route-csv",
+              "operator": {
+                "type": "string",
+                "parameters": {
+                  "value1": "={{ $json.export_format }}",
+                  "value2": "csv"
+                }
+              }
+            },
+            {
+              "id": "route-markdown",
+              "operator": {
+                "type": "string",
+                "parameters": {
+                  "value1": "={{ $json.export_format }}",
+                  "value2": "markdown"
+                }
+              }
+            },
+            {
+              "id": "route-telegram",
+              "operator": {
+                "type": "string",
+                "parameters": {
+                  "value1": "={{ $json.export_format }}",
+                  "value2": "telegram"
+                }
+              }
+            }
+          ]
+        },
+        "fallbackOutput": ""
       }
     },
     {
-      "id": "code-json",
-      "name": "Build JSON Export",
+      "id": "code-2",
+      "name": "Build JSON",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 100],
+      "position": [1500, 100],
       "parameters": {
-        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString();\n\nlet products = [];\ntry {\n  products = typeof d.products === 'string' ? JSON.parse(d.products || '[]') : (d.products || []);\n} catch(e) {}\n\nconst jsonOutput = {\n  export_metadata: { exported_at: ts, format: 'json', version: '1.0' },\n  run: { id: d.run_id, company_domain: d.company_domain },\n  company: {\n    name: d.company_name, domain: d.company_domain,\n    description: d.description, founded_year: d.founded_year,\n    employees: d.employees, headquarters: d.headquarters,\n    website: d.website, logo_url: d.logo_url\n  },\n  score_card: {\n    total_score: Number(d.score), confidence: d.confidence,\n    report_url: d.report_url,\n    pillars: [\n      { name: 'Product', score: Number(d.product_score) },\n      { name: 'ICP Fit', score: Number(d.icp_score) },\n      { name: 'Team', score: Number(d.team_score) },\n      { name: 'Business Model', score: Number(d.business_model_score) },\n      { name: 'Funding', score: Number(d.funding_score) },\n      { name: 'Growth', score: Number(d.growth_score) },\n      { name: 'Market', score: Number(d.market_score) },\n      { name: 'Risk', score: Number(d.risk_score) }\n    ],\n    composite: Number(d.score)\n  },\n  ai_extraction: {\n    product_summary: d.product_summary, icp_analysis: d.icp_analysis,\n    team_analysis: d.team_analysis, funding_summary: d.funding_summary,\n    growth_indicators: d.growth_indicators, market_analysis: d.market_analysis,\n    risk_factors: d.risk_factors, products\n  }\n};\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'json',\n  content: jsonOutput,\n  company_name: d.company_name,\n  score: d.score,\n  confidence: d.confidence,\n  product_score: d.product_score,\n  icp_score: d.icp_score,\n  funding_score: d.funding_score,\n  growth_score: d.growth_score,\n  report_url: d.report_url,\n  risk_factors: d.risk_factors\n}]"
+        "language": "javascript",
+        "code": "const merged = $node[\"Merge Data\"].json;\nconst report = {\n  report: {\n    company: merged.company,\n    score_card: merged.score_card,\n    ai_extraction: merged.ai_extraction,\n    generated_at: new Date().toISOString()\n  }\n};\nreturn {\n  content: JSON.stringify(report, null, 2),\n  format: \"json\"\n};"
       }
     },
     {
-      "id": "code-csv",
-      "name": "Build CSV Export",
+      "id": "code-3",
+      "name": "Build CSV",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 250],
+      "position": [1500, 300],
       "parameters": {
-        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString();\n\nconst escape = (val) => {\n  const s = String(val || '').replace(/\"/g, '\"\"');\n  return s.includes(',') || s.includes('\"') || s.includes('\\n') ? `\"${s}\"` : s;\n};\n\nconst header = 'run_id,company_domain,company_name,composite_score,product_score,icp_score,team_score,business_model_score,funding_score,growth_score,market_score,risk_score,confidence,description,founded_year,employees,headquarters,website,report_url,exported_at';\nconst row = [\n  d.run_id, d.company_domain, d.company_name, d.score,\n  d.product_score, d.icp_score, d.team_score, d.business_model_score,\n  d.funding_score, d.growth_score, d.market_score, d.risk_score,\n  d.confidence, d.description, d.founded_year, d.employees,\n  d.headquarters, d.website, d.report_url, ts\n].map(escape).join(',');\n\nconst csvContent = header + '\\n' + row;\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'csv',\n  content: csvContent,\n  company_name: d.company_name,\n  score: d.score,\n  confidence: d.confidence,\n  product_score: d.product_score,\n  icp_score: d.icp_score,\n  funding_score: d.funding_score,\n  growth_score: d.growth_score,\n  report_url: d.report_url,\n  risk_factors: d.risk_factors\n}]"
+        "language": "javascript",
+        "code": "const merged = $node[\"Merge Data\"].json;\nconst row = {\n  company_domain: merged.company_domain,\n  run_id: merged.run_id,\n  total_score: merged.score_card?.total_score || 0,\n  total_criteria: (merged.score_card?.criteria_results || []).length,\n  ai_summary: (merged.ai_extraction?.summary || \"\").replace(/,/g, \";\"),\n  company_industry: merged.company?.industry || \"\"\n};\nconst header = Object.keys(row).join(\",\");\nconst values = Object.values(row).map(v => typeof v === \"string\" && v.includes(\",\") ? `\"${v}\"` : v).join(\",\");\nreturn {\n  content: header + \"\\n\" + values,\n  format: \"csv\"\n};"
       }
     },
     {
-      "id": "code-md",
-      "name": "Build Markdown Report",
+      "id": "code-4",
+      "name": "Build Markdown",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 400],
+      "position": [1500, 500],
       "parameters": {
-        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString().split('T')[0];\n\nconst scoreBar = (label, score, maxScore) => {\n  const filled = Math.round((Number(score) / (maxScore || 100)) * 20);\n  const bar = '█'.repeat(Math.min(filled, 20)) + '░'.repeat(Math.max(0, 20 - filled));\n  return `${label.padEnd(18)} ${String(score).padStart(3)}/100 ${bar}`;\n};\n\nlet productsSection = 'N/A';\ntry {\n  const products = typeof d.products === 'string' ? JSON.parse(d.products || '[]') : (d.products || []);\n  if (products.length > 0) {\n    productsSection = products.map(p => `- ${p.name || p.title || p}`).join('\\n');\n  }\n} catch(e) {}\n\nconst md = [\n  `# Jasfo Score Card Report`,\n  `**Company:** ${d.company_name}  `,\n  `**Domain:** ${d.company_domain}  `,\n  `**Date:** ${ts}  `,\n  `**Confidence:** ${d.confidence}  `,\n  `**Report URL:** ${d.report_url || 'N/A'}`,\n  '',\n  '---',\n  '',\n  '## Company Overview',\n  `| Field | Value |`,\n  `|-------|-------|`,\n  `| Description | ${(d.description || 'N/A').replace(/\\|/g, '\\\\|')} |`,\n  `| Founded | ${d.founded_year || 'N/A'} |`,\n  `| Employees | ${d.employees || 'N/A'} |`,\n  `| Headquarters | ${d.headquarters || 'N/A'} |`,\n  `| Website | ${d.website || 'N/A'} |`,\n  '',\n  '## Score Card',\n  `**Composite Score: ${d.score}/100**`,\n  '',\n  '| Pillar | Score | Distribution |',\n  '|--------|-------|--------------|',\n  `| Product | ${d.product_score}/100 | ${scoreBar('', d.product_score, 100).trim()} |`,\n  `| ICP Fit | ${d.icp_score}/100 | ${scoreBar('', d.icp_score, 100).trim()} |`,\n  `| Team | ${d.team_score}/100 | ${scoreBar('', d.team_score, 100).trim()} |`,\n  `| Business Model | ${d.business_model_score}/100 | ${scoreBar('', d.business_model_score, 100).trim()} |`,\n  `| Funding | ${d.funding_score}/100 | ${scoreBar('', d.funding_score, 100).trim()} |`,\n  `| Growth | ${d.growth_score}/100 | ${scoreBar('', d.growth_score, 100).trim()} |`,\n  `| Market | ${d.market_score}/100 | ${scoreBar('', d.market_score, 100).trim()} |`,\n  `| Risk | ${d.risk_score}/100 | ${scoreBar('', d.risk_score, 100).trim()} |`,\n  '',\n  '## Products',\n  productsSection,\n  '',\n  '## AI Analysis',\n  '',\n  '### Product Summary',\n  d.product_summary || 'N/A',\n  '',\n  '### ICP Analysis',\n  d.icp_analysis || 'N/A',\n  '',\n  '### Team Analysis',\n  d.team_analysis || 'N/A',\n  '',\n  '### Funding Summary',\n  d.funding_summary || 'N/A',\n  '',\n  '### Growth Indicators',\n  d.growth_indicators || 'N/A',\n  '',\n  '### Market Analysis',\n  d.market_analysis || 'N/A',\n  '',\n  '## Risk Factors',\n  d.risk_factors || 'No risk factors identified.',\n  '',\n  '---',\n  `_Generated by Jasfo Platform on ${ts}_`\n].join('\\n');\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'markdown',\n  content: md,\n  company_name: d.company_name,\n  score: d.score,\n  confidence: d.confidence,\n  product_score: d.product_score,\n  icp_score: d.icp_score,\n  funding_score: d.funding_score,\n  growth_score: d.growth_score,\n  report_url: d.report_url,\n  risk_factors: d.risk_factors\n}]"
+        "language": "javascript",
+        "code": "const merged = $node[\"Merge Data\"].json;\nconst sc = merged.score_card || {};\nconst ae = merged.ai_extraction || {};\nconst co = merged.company || {};\n\nlet md = \"# Score Card Report\\n\\n\";\nmd += `**Company:** ${merged.company_domain}\\n`;\nmd += `**Run ID:** ${merged.run_id}\\n`;\nmd += `**Total Score:** ${sc.total_score || \"N/A\"}\\n\\n`;\n\nif (sc.pillar_scores && Object.keys(sc.pillar_scores).length > 0) {\n  md += \"## Pillar Scores\\n\\n\";\n  md += \"| Pillar | Score |\\n|-------|-------|\\n\";\n  for (const [pillar, score] of Object.entries(sc.pillar_scores)) {\n    md += `| ${pillar} | ${score} |\\n`;\n  }\n  md += \"\\n\";\n}\n\nif (sc.criteria_results && sc.criteria_results.length > 0) {\n  md += \"## Criteria Results\\n\\n\";\n  md += \"| # | Criterion | Pass | Score |\\n|---|----------|------|-------|\\n\";\n  sc.criteria_results.forEach((c, i) => {\n    md += `| ${i + 1} | ${c.criterion || c.name || \"\"} | ${c.pass || c.passed ? \"✅\" : \"❌\"} | ${c.score || 0} |\\n`;\n  });\n  md += \"\\n\";\n}\n\nif (ae.summary) {\n  md += \"## AI Summary\\n\\n\" + ae.summary + \"\\n\\n\";\n}\n\nif (co.notes) {\n  md += \"## Company Notes\\n\\n\" + co.notes + \"\\n\";\n}\n\nmd += \"\\n---\\n_Generated: \" + new Date().toISOString() + \"_\";\n\nreturn {\n  content: md,\n  format: \"markdown\"\n};"
       }
     },
     {
-      "id": "code-tg",
-      "name": "Build Telegram Message",
+      "id": "code-5",
+      "name": "Build Telegram",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 560],
+      "position": [1500, 700],
       "parameters": {
-        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString();\n\nconst riskSummary = typeof d.risk_factors === 'string'\n  ? d.risk_factors.substring(0, 400)\n  : 'No risk factors identified.';\n\nconst msg = [\n  '\\u{1F4CA} *' + (d.company_name || d.company_domain) + '*',\n  '',\n  'Score: *' + d.score + '/100* \\u2014 ' + (d.confidence || 'N/A'),\n  '',\n  '*Key Pillars*',\n  'Product: ' + d.product_score + ' | ICP: ' + d.icp_score,\n  'Funding: ' + d.funding_score + ' | Growth: ' + d.growth_score,\n  '',\n  '*Risk Factors*',\n  riskSummary,\n  '',\n  '\\u{1F517} Report: ' + (d.report_url || 'N/A')\n].join('\\n');\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'telegram',\n  content: msg,\n  text: msg,\n  chat_id: '={{ -5497421027 }}',\n  parse_mode: 'Markdown',\n  company_name: d.company_name,\n  score: d.score,\n  report_url: d.report_url\n}]"
+        "language": "javascript",
+        "code": "const merged = $node[\"Merge Data\"].json;\nconst sc = merged.score_card || {};\nconst ae = merged.ai_extraction || {};\nconst co = merged.company || {};\n\nlet text = \"\\u{1F4CA} *Score Card Report*\\n\\n\";\ntext += `\\u{1F3E2} *Company:* ${merged.company_domain}\\n`;\ntext += `\\u{1F522} *Run:* ${merged.run_id}\\n`;\ntext += `\\u{1F4C8} *Score:* ${sc.total_score || \"N/A\"}/100\\n\\n`;\n\nif (sc.pillar_scores && Object.keys(sc.pillar_scores).length > 0) {\n  text += \"*Pillar Scores:*\\n\";\n  for (const [pillar, score] of Object.entries(sc.pillar_scores)) {\n    const icon = score >= 80 ? \"\\u{1F7E2}\" : score >= 50 ? \"\\u{1F7E1}\" : \"\\u{1F534}\";\n    text += `${icon} *${pillar}:* ${score}\\n`;\n  }\n  text += \"\\n\";\n}\n\nif (ae.summary) {\n  text += `\\u{1F4DD} *Summary:* ${ae.summary.substring(0, 400)}\\n\\n`;\n}\n\nif (co.notes) {\n  text += `\\u{1F4CC} *Notes:* ${co.notes.substring(0, 200)}\\n\\n`;\n}\n\ntext += `\\u{23F0} _Generated: ${new Date().toISOString()}_`;\n\nreturn { text: text };"
       }
     },
     {
-      "id": "tg-send",
+      "id": "http-4",
       "name": "Send Telegram",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [1500, 600],
-      "credentials": {
-        "telegramApi": {
-          "id": "2",
-          "name": "Jasfo Telegram Bot"
-        }
-      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 700],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "={{ $json.chat_id }}",
-        "text": "={{ $json.text }}",
-        "additionalFields": {
-          "parse_mode": "={{ $json.parse_mode }}"
-        }
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8688503635:AAH4obxx3lGXYhoke1hR8mFJvoTvflVRrnE/sendMessage",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "jsonBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "-5497421027"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "options": {}
       }
     },
     {
-      "id": "pg-archive",
+      "id": "http-5",
       "name": "Archive Report",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [1500, 350],
-      "credentials": {
-        "postgres": {
-          "id": "1",
-          "name": "Supabase DB"
-        }
-      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 400],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO report_archive (run_id, company_domain, format, content, delivered_at, delivery_status) VALUES ($1, $2, $3, $4::jsonb, NOW(), 'delivered')",
-        "queryParams": {
-          "values": [
-            { "string": "={{ $json.run_id }}" },
-            { "string": "={{ $json.company_domain }}" },
-            { "string": "={{ $json.format }}" },
-            { "string": "={{ JSON.stringify($json.content) }}" }
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/report_archive",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
-        "additionalFields": {
-          "nodeVersion": "2"
-        }
+        "sendBody": true,
+        "jsonBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "run_id",
+              "value": "={{ $node['Merge Data'].json.run_id }}"
+            },
+            {
+              "name": "company_domain",
+              "value": "={{ $node['Merge Data'].json.company_domain }}"
+            },
+            {
+              "name": "format",
+              "value": "={{ $node['Merge Data'].json.export_format }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.content || $json.text || JSON.stringify($json) }}"
+            },
+            {
+              "name": "delivered_at",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "name": "delivery_status",
+              "value": "sent"
+            }
+          ]
+        },
+        "options": {}
       }
     },
     {
-      "id": "pg-update",
-      "name": "Update Queue Status",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [1700, 350],
-      "credentials": {
-        "postgres": {
-          "id": "1",
-          "name": "Supabase DB"
-        }
-      },
+      "id": "http-6",
+      "name": "Update Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2250, 400],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE scenario_queue SET status = 'completed', updated_at = NOW() WHERE run_id = $1",
-        "queryParams": {
-          "values": [
-            { "string": "={{ $json.run_id }}" }
+        "method": "PATCH",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.{{ $node['Merge Data'].json.run_id }}&company_domain=eq.{{ $node['Merge Data'].json.company_domain }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
-        "additionalFields": {
-          "nodeVersion": "2"
-        }
+        "sendBody": true,
+        "jsonBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "completed"
+            }
+          ]
+        },
+        "options": {}
       }
     }
   ],
   "connections": {
-    "Receive Score Card Data": {
+    "Webhook": {
       "main": [
         [
-          { "node": "Get Score Card", "type": "main", "index": 0 },
-          { "node": "Get AI Extraction", "type": "main", "index": 0 },
-          { "node": "Get Company", "type": "main", "index": 0 }
+          {
+            "node": "Get Score Card",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Get Score Card": {
       "main": [
         [
-          { "node": "Merge Score Card + AI", "type": "main", "index": 0 }
+          {
+            "node": "Get AI Extraction",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Get AI Extraction": {
       "main": [
         [
-          { "node": "Merge Score Card + AI", "type": "main", "index": 1 }
-        ]
-      ]
-    },
-    "Merge Score Card + AI": {
-      "main": [
-        [
-          { "node": "Merge + Company Data", "type": "main", "index": 0 }
+          {
+            "node": "Get Company",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Get Company": {
       "main": [
         [
-          { "node": "Merge + Company Data", "type": "main", "index": 1 }
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Merge + Company Data": {
+    "Merge Data": {
       "main": [
         [
-          { "node": "Prepare Data", "type": "main", "index": 0 }
+          {
+            "node": "Switch Route Format",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Prepare Data": {
+    "Switch Route Format": {
       "main": [
         [
-          { "node": "Route Format", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "Route Format": {
-      "main": [
-        [
-          { "node": "Build JSON Export", "type": "main", "index": 0 }
+          {
+            "node": "Build JSON",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Build CSV Export", "type": "main", "index": 0 }
+          {
+            "node": "Build CSV",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Build Markdown Report", "type": "main", "index": 0 }
+          {
+            "node": "Build Markdown",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
-          { "node": "Build Telegram Message", "type": "main", "index": 0 }
+          {
+            "node": "Build Telegram",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Build JSON Export": {
+    "Build JSON": {
       "main": [
         [
-          { "node": "Archive Report", "type": "main", "index": 0 }
+          {
+            "node": "Archive Report",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Build CSV Export": {
+    "Build CSV": {
       "main": [
         [
-          { "node": "Archive Report", "type": "main", "index": 0 }
+          {
+            "node": "Archive Report",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Build Markdown Report": {
+    "Build Markdown": {
       "main": [
         [
-          { "node": "Archive Report", "type": "main", "index": 0 }
+          {
+            "node": "Archive Report",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Build Telegram Message": {
+    "Build Telegram": {
       "main": [
         [
-          { "node": "Send Telegram", "type": "main", "index": 0 }
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Send Telegram": {
       "main": [
         [
-          { "node": "Archive Report", "type": "main", "index": 0 }
+          {
+            "node": "Archive Report",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Archive Report": {
       "main": [
         [
-          { "node": "Update Queue Status", "type": "main", "index": 0 }
+          {
+            "node": "Update Queue",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
-  "settings": {
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "timezone": "UTC"
-  },
-  "staticData": null,
-  "tags": [
-    { "name": "jasfo" },
-    { "name": "export" },
-    { "name": "delivery" }
-  ]
+  "pinData": {},
+  "active": true,
+  "settings": {},
+  "tags": [],
+  "id": "jasfo-export-delivery",
+  "versionId": "1"
 }

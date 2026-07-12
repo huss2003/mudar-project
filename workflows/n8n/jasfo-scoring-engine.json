@@ -1,689 +1,744 @@
 {
-  "name": "Jasfo Scoring + Consensus Engine",
+  "name": "Jasfo Scoring Engine",
   "nodes": [
     {
+      "id": "webhook-trigger",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [
-        250,
-        300
-      ],
+      "position": [250, 300],
       "parameters": {
         "path": "jasfo-scoring",
-        "httpMethod": "POST",
-        "responseMode": "onReceived",
-        "responseData": "={{ $json }}",
-        "options": {
-          "rawBody": true
-        }
+        "responseMode": "lastNode",
+        "options": {}
       }
     },
     {
+      "id": "get-extraction",
       "name": "Get AI Extraction",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [
-        450,
-        300
-      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT * FROM public.ai_extractions WHERE id = $1::uuid LIMIT 1",
-        "additionalParameters": {
-          "queryReplacement": "={{ [$json.body.extraction_id] }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
+        "method": "GET",
+        "url": "=https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/ai_extractions?id=eq.{{ $json.extraction_id }}&select=*",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "Prepare Scoring Context",
+      "id": "build-context",
+      "name": "Build Scoring Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        650,
-        300
-      ],
+      "position": [650, 300],
       "parameters": {
-        "language": "javascript",
-        "code": "const wh = $node[\"Webhook\"].json.body;\nconst ex = $input.first().json;\n\nconst ctx = [\n  `Company: ${ex.company_name || wh.company_name}`,\n  `Domain: ${ex.company_domain || wh.company_domain}`,\n  `Description: ${ex.description || \"\"}`,\n  `Business Model: ${ex.business_model || \"\"}`,\n  `Revenue: ${ex.revenue || \"\"}`,\n  `Funding: ${ex.funding || \"\"}`,\n  `Employees: ${ex.employees || \"\"}`,\n  `Technologies: ${Array.isArray(ex.technologies) ? ex.technologies.join(\", \") : (ex.technologies || \"\")}`,\n  `Recent News: ${ex.recent_news || \"\"}`,\n  `Key People: ${ex.key_people || \"\"}`,\n  `Market Position: ${ex.market_position || \"\"}`,\n  `Growth Metrics: ${ex.growth_metrics || \"\"}`,\n  `Financial Data: ${ex.financial_data || \"\"}`,\n  `Decision Makers: ${ex.decision_makers || \"\"}`,\n  `Network Data: ${ex.network_data || \"\"}`\n].join(\"\\n\");\n\nreturn [{\n  json: {\n    run_id: wh.run_id,\n    company_name: ex.company_name || wh.company_name,\n    company_domain: ex.company_domain || wh.company_domain,\n    extraction_id: wh.extraction_id,\n    contextText: ctx\n  }\n}];"
+        "language": "javaScript",
+        "code": "const records = $input.first().json;\nconst record = Array.isArray(records) ? records[0] : records;\n\nreturn {\n  company_name: record.company_name || 'Unknown',\n  company_domain: record.company_domain || '',\n  industry: record.industry || '',\n  description: record.description || '',\n  revenue: record.revenue || null,\n  funding: record.funding || null,\n  employees: record.employees || null,\n  founded: record.founded || '',\n  technologies: record.technologies || [],\n  business_model: record.business_model || '',\n  target_market: record.target_market || '',\n  competitors: record.competitors || [],\n  growth_metrics: record.growth_metrics || {},\n  financial_data: record.financial_data || {},\n  decision_makers: record.decision_makers || [],\n  network_data: record.network_data || {},\n  opportunity_data: record.opportunity_data || {},\n  evidence_data: record.evidence_data || {},\n  ai_summary: record.ai_summary || '',\n  run_id: record.run_id || $('Webhook').first().json.run_id,\n  extraction_id: record.id\n};"
       }
     },
     {
-      "name": "DeepSeek - Company Fit",
+      "id": "score-company-fit",
+      "name": "Score Company Fit",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        50
-      ],
+      "typeVersion": 4.2,
+      "position": [850, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Company Fit (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"company_fit\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Company Fit from 0-100. Assess how well the company matches the ideal customer profile based on industry, size, technology stack, and business model. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean better fit."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "DeepSeek - Move Intent",
+      "id": "score-move-intent",
+      "name": "Score Move Intent",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        130
-      ],
+      "typeVersion": 4.2,
+      "position": [1050, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Move Intent (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"move_intent\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Move Intent from 0-100. Assess the likelihood the company is actively seeking a solution based on hiring signals, funding usage, growth phase, and technology gaps. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean stronger intent."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "DeepSeek - Growth Signal",
+      "id": "score-growth",
+      "name": "Score Growth",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        210
-      ],
+      "typeVersion": 4.2,
+      "position": [1250, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Growth Signal (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"growth_signal\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Growth from 0-100. Evaluate revenue growth trajectory, headcount expansion, market expansion signals, and product development velocity. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean faster growth."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "DeepSeek - Financial Health",
+      "id": "score-financial",
+      "name": "Score Financial",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        290
-      ],
+      "typeVersion": 4.2,
+      "position": [1450, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Financial Health (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"financial_health\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Financial Health from 0-100. Assess funding raised, revenue run rate, profitability indicators, burn rate, and financial stability. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean stronger financials."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "DeepSeek - Decision Maker Access",
+      "id": "score-decision-maker",
+      "name": "Score Decision Maker",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        370
-      ],
+      "typeVersion": 4.2,
+      "position": [1650, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Decision Maker Access (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"decision_maker_access\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Decision Maker Access from 0-100. Evaluate identifiability of key decision makers, their seniority, relevance of their roles, and accessibility through network channels. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean better access."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "DeepSeek - Network/Relationships",
+      "id": "score-network",
+      "name": "Score Network",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        450
-      ],
+      "typeVersion": 4.2,
+      "position": [1850, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Network/Relationships (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"network_relationships\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Network Strength from 0-100. Assess existing connections, mutual contacts, employee connections, and shared network density. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean stronger network."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "DeepSeek - Opportunity Timing",
+      "id": "score-opportunity",
+      "name": "Score Opportunity",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        530
-      ],
+      "typeVersion": 4.2,
+      "position": [2050, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Opportunity Timing (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"opportunity_timing\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Opportunity from 0-100. Evaluate timing of need, budget availability, competitive gaps, and strategic fit for current offerings. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean larger opportunity."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "DeepSeek - Evidence Quality",
+      "id": "score-evidence",
+      "name": "Score Evidence",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        850,
-        610
-      ],
+      "typeVersion": 4.2,
+      "position": [2250, 300],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "deepseekApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "deepseek-chat"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a precise B2B company scoring agent. Return ONLY valid JSON.\"},{\"role\":\"user\",\"content\":\"Score \" + $json.company_name + \" on Evidence Quality (0-100).\\n\\nCompany Context:\\n\" + $json.contextText + \"\\n\\nReturn JSON: {\\\"pillar\\\": \\\"evidence_quality\\\", \\\"score\\\": <0-100>, \\\"justification\\\": \\\"...\\\", \\\"evidence\\\": [...]}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.3
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "deepseekApi": {
-          "id": "__DS_CRED_ID__",
-          "name": "DeepSeek API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "deepseek-v4-flash",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a B2B lead scoring AI. Score this company on Evidence Quality from 0-100. Assess the quantity and quality of available data, source reliability, recency of information, and confidence in the extraction. Respond with JSON: {\"score\": <0-100>, \"reasoning\": \"...\", \"confidence\": <0-1>, \"factors\": [\"...\"]}. Higher scores mean better evidence."
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nData:\n{{ JSON.stringify($node[\"Build Scoring Context\"].json) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
-      "name": "Merge Results",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2,
-      "position": [
-        1050,
-        330
-      ],
-      "parameters": {
-        "mode": "combine",
-        "combinationMode": "combineAll"
-      }
-    },
-    {
-      "name": "Aggregate Scores",
+      "id": "calculate-composite",
+      "name": "Calculate Composite",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1250,
-        330
-      ],
+      "position": [2450, 300],
       "parameters": {
-        "language": "javascript",
-        "code": "const items = $input.all();\nconst weights = {\n  company_fit: 0.10,\n  move_intent: 0.35,\n  growth_signal: 0.15,\n  financial_health: 0.12,\n  decision_maker_access: 0.10,\n  network_relationships: 0.08,\n  opportunity_timing: 0.05,\n  evidence_quality: 0.05\n};\n\nconst ctx = $node[\"Prepare Scoring Context\"].json;\nconst pillarScores = {};\nlet weightedSum = 0;\nlet totalW = 0;\n\nfor (const item of items) {\n  const resp = item.json;\n  const raw = resp.choices?.[0]?.message?.content;\n  if (!raw) continue;\n  try {\n    const parsed = JSON.parse(raw);\n    const pillar = parsed.pillar;\n    if (!pillar || !weights[pillar]) continue;\n    const score = Math.max(0, Math.min(100, Math.round(parsed.score || 0)));\n    pillarScores[pillar] = {\n      score,\n      justification: parsed.justification || \"\",\n      evidence: Array.isArray(parsed.evidence) ? parsed.evidence : [],\n      weight: weights[pillar]\n    };\n    weightedSum += score * weights[pillar];\n    totalW += weights[pillar];\n  } catch (e) {\n    continue;\n  }\n}\n\nconst compositeScore = totalW > 0 ? Math.round(weightedSum / totalW) : 0;\n\nconst riskFactors = [];\nfor (const [pillar, data] of Object.entries(pillarScores)) {\n  if (data.score < 40) {\n    riskFactors.push({\n      pillar,\n      score: data.score,\n      concern: `Low ${pillar.replace(/_/g, \" \")} score (${data.score}/100)`,\n      justification: data.justification\n    });\n  }\n}\n\nlet confidence = \"medium\";\nif (Object.keys(pillarScores).length >= 7) confidence = \"high\";\nelse if (Object.keys(pillarScores).length <= 4) confidence = \"low\";\n\nreturn [{\n  json: {\n    run_id: ctx.run_id,\n    company_name: ctx.company_name,\n    company_domain: ctx.company_domain,\n    pillar_scores: pillarScores,\n    composite_score: compositeScore,\n    confidence,\n    risk_factors: riskFactors,\n    pillar_count: Object.keys(pillarScores).length\n  }\n}];"
+        "language": "javaScript",
+        "code": "function parseScore(nodeName) {\n  try {\n    const node = $(nodeName).first().json;\n    const content = node?.choices?.[0]?.message?.content;\n    if (!content) return { score: 0, reasoning: 'No content in response', confidence: 0, factors: [] };\n    const parsed = JSON.parse(content);\n    return {\n      score: typeof parsed.score === 'number' ? parsed.score : 0,\n      reasoning: parsed.reasoning || '',\n      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,\n      factors: Array.isArray(parsed.factors) ? parsed.factors : []\n    };\n  } catch (e) {\n    return { score: 0, reasoning: 'Parse error: ' + e.message, confidence: 0, factors: [] };\n  }\n}\n\nconst fit = parseScore('Score Company Fit');\nconst moveIntent = parseScore('Score Move Intent');\nconst growth = parseScore('Score Growth');\nconst financial = parseScore('Score Financial');\nconst dm = parseScore('Score Decision Maker');\nconst network = parseScore('Score Network');\nconst opportunity = parseScore('Score Opportunity');\nconst evidence = parseScore('Score Evidence');\n\nconst composite = \n  (moveIntent.score || 0) * 0.35 +\n  (growth.score || 0) * 0.15 +\n  (financial.score || 0) * 0.12 +\n  (fit.score || 0) * 0.10 +\n  (dm.score || 0) * 0.10 +\n  (network.score || 0) * 0.08 +\n  (opportunity.score || 0) * 0.05 +\n  (evidence.score || 0) * 0.05;\n\nconst riskFactors = [];\nif ((fit.score || 0) < 50) riskFactors.push('Low company fit');\nif ((moveIntent.score || 0) < 50) riskFactors.push('Low move intent');\nif ((growth.score || 0) < 50) riskFactors.push('Weak growth indicators');\nif ((financial.score || 0) < 50) riskFactors.push('Weak financial health');\nif ((dm.score || 0) < 50) riskFactors.push('No strong decision maker signal');\nif ((network.score || 0) < 50) riskFactors.push('Weak network connections');\nif ((opportunity.score || 0) < 50) riskFactors.push('Limited opportunity signal');\nif ((evidence.score || 0) < 50) riskFactors.push('Insufficient evidence');\n\nconst avgConfidence = (\n  (fit.confidence || 0) + (moveIntent.confidence || 0) +\n  (growth.confidence || 0) + (financial.confidence || 0) +\n  (dm.confidence || 0) + (network.confidence || 0) +\n  (opportunity.confidence || 0) + (evidence.confidence || 0)\n) / 8;\n\nreturn {\n  composite_score: Math.round(composite * 100) / 100,\n  pillar_scores: {\n    company_fit: fit,\n    move_intent: moveIntent,\n    growth: growth,\n    financial: financial,\n    decision_maker: dm,\n    network: network,\n    opportunity: opportunity,\n    evidence: evidence\n  },\n  confidence: Math.round(avgConfidence * 100) / 100,\n  risk_factors: riskFactors\n};"
       }
     },
     {
-      "name": "MiMo V2.5 Reflection",
+      "id": "mimo-reflection",
+      "name": "MiMo Reflection",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        1450,
-        330
-      ],
+      "typeVersion": 4.2,
+      "position": [2650, 300],
       "parameters": {
         "method": "POST",
-        "url": "https://api.mimo.ai/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "nodeCredentialType": "mimoApi",
-        "sendBody": true,
-        "bodyContentType": "json",
-        "bodyParameters": {
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "mimo-v2.5"
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
             },
             {
-              "name": "messages",
-              "value": "={{ [{\"role\":\"system\",\"content\":\"You are a quality reflection agent. Review the scoring for consistency, accuracy, and bias.\"},{\"role\":\"user\",\"content\":\"Review this scoring for company \" + $json.company_name + \" (domain: \" + $json.company_domain + \").\\n\\nComposite Score: \" + $json.composite_score + \"/100\\nConfidence: \" + $json.confidence + \"\\n\\nPillar Scores:\\n\" + JSON.stringify($json.pillar_scores, null, 2) + \"\\n\\nRisk Factors:\\n\" + JSON.stringify($json.risk_factors, null, 2) + \"\\n\\nReturn JSON: {\\\"verdict\\\": \\\"PASS\\\" or \\\"FAIL\\\", \\\"issues\\\": [], \\\"suggested_adjustment\\\": null, \\\"reasoning\\\": \\\"...\\\"}\"}] }}",
-              "parameterType": "expression"
-            },
-            {
-              "name": "temperature",
-              "value": 0.2
-            },
-            {
-              "name": "response_format",
-              "value": "={{ {\"type\":\"json_object\"} }}",
-              "parameterType": "expression"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {}
-      },
-      "credentials": {
-        "mimoApi": {
-          "id": "__MIMO_CRED_ID__",
-          "name": "MiMo V2.5 API"
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "model": "mimo-v2.5",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a scoring quality auditor. Review the following B2B lead scoring output for consistency, bias, accuracy, and proper weight distribution. Verify the pillar scores align with the extracted company data and that the composite score reflects the weighted formula. Respond with JSON: {\"passed\": true/false, \"reasoning\": \"...\", \"adjustments\": [\"...\"]}"
+            },
+            {
+              "role": "user",
+              "content": "Company: {{ $node[\"Build Scoring Context\"].json.company_name }}\n\nComposite Score: {{ $node[\"Calculate Composite\"].json.composite_score }}\n\nPillar Scores:\n{{ JSON.stringify($node[\"Calculate Composite\"].json.pillar_scores) }}\n\nConfidence: {{ $node[\"Calculate Composite\"].json.confidence }}\n\nRisk Factors: {{ JSON.stringify($node[\"Calculate Composite\"].json.risk_factors) }}"
+            }
+          ],
+          "temperature": 0.2,
+          "max_tokens": 2000,
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
+      "id": "parse-reflection",
       "name": "Parse Reflection",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1650,
-        330
-      ],
+      "position": [2850, 300],
       "parameters": {
-        "language": "javascript",
-        "code": "const resp = $input.first().json;\nconst raw = resp.choices?.[0]?.message?.content || \"{}\";\nlet reflection;\ntry {\n  reflection = JSON.parse(raw);\n} catch (e) {\n  reflection = { verdict: \"FAIL\", issues: [\"Parse error: \" + e.message], reasoning: \"\" };\n}\n\nconst ctx = $node[\"Aggregate Scores\"].json;\nconst passed = reflection.verdict === \"PASS\";\nconst adj = typeof reflection.suggested_adjustment === \"number\" ? reflection.suggested_adjustment : ctx.composite_score;\n\nreturn [{\n  json: {\n    run_id: ctx.run_id,\n    company_name: ctx.company_name,\n    company_domain: ctx.company_domain,\n    pillar_scores: ctx.pillar_scores,\n    composite_score: adj,\n    original_composite: ctx.composite_score,\n    confidence: ctx.confidence,\n    risk_factors: ctx.risk_factors,\n    reflection_passed: passed,\n    reflection_verdict: reflection.verdict,\n    reflection_issues: reflection.issues || [],\n    reflection_reasoning: reflection.reasoning || \"\"\n  }\n}];"
+        "language": "javaScript",
+        "code": "const response = $input.first().json;\nconst content = response?.choices?.[0]?.message?.content || response?.content || JSON.stringify(response);\nlet parsed;\ntry {\n  parsed = typeof content === 'string' ? JSON.parse(content) : content;\n} catch (e) {\n  parsed = { passed: false, reasoning: 'Failed to parse reflection: ' + e.message, adjustments: [] };\n}\n\nreturn {\n  reflection_passed: parsed.passed === true,\n  reflection_reasoning: parsed.reasoning || '',\n  reflection_adjustments: Array.isArray(parsed.adjustments) ? parsed.adjustments : [],\n  raw_reflection: typeof content === 'string' ? content.substring(0, 5000) : JSON.stringify(content).substring(0, 5000)\n};"
       }
     },
     {
+      "id": "reflection-if",
       "name": "Reflection Passed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [
-        1850,
-        330
-      ],
+      "position": [3050, 300],
       "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
+            "leftValue": "={{ $json.reflection_passed }}",
+            "type": "boolean",
+            "rightValue": true
           },
+          "combinator": "and",
           "conditions": [
             {
-              "id": "cond-passed",
+              "id": "reflection-cond",
               "leftValue": "={{ $json.reflection_passed }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
-                "operation": "equals"
+                "operation": "equal"
               }
             }
-          ],
-          "combinator": "and"
-        }
-      }
-    },
-    {
-      "name": "Insert Score Card (Passed)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [
-        2050,
-        200
-      ],
-      "parameters": {
-        "operation": "insert",
-        "schema": "public",
-        "table": "score_cards",
-        "dataMode": "columns",
-        "columns": {
-          "column": [
-            {
-              "column": "run_id",
-              "value": "={{ $json.run_id }}"
-            },
-            {
-              "column": "company_domain",
-              "value": "={{ $json.company_domain }}"
-            },
-            {
-              "column": "pillar_scores",
-              "value": "={{ $json.pillar_scores }}"
-            },
-            {
-              "column": "composite_score",
-              "value": "={{ $json.composite_score }}"
-            },
-            {
-              "column": "confidence",
-              "value": "={{ $json.confidence }}"
-            },
-            {
-              "column": "risk_factors",
-              "value": "={{ $json.risk_factors }}"
-            },
-            {
-              "column": "reflection_passed",
-              "value": "={{ $json.reflection_passed }}"
-            }
           ]
         }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
-        }
       }
     },
     {
-      "name": "Update Queue (Completed)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [
-        2250,
-        200
-      ],
+      "id": "insert-score-success",
+      "name": "Insert Score Card (Success)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3250, 200],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE public.scenario_queue SET status = 'scored', updated_at = NOW() WHERE run_id = $1",
-        "additionalParameters": {
-          "queryReplacement": "={{ [$json.run_id] }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
-        }
-      }
-    },
-    {
-      "name": "Insert Score Card (Failed)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [
-        2050,
-        460
-      ],
-      "parameters": {
-        "operation": "insert",
-        "schema": "public",
-        "table": "score_cards",
-        "dataMode": "columns",
-        "columns": {
-          "column": [
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/score_cards",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "column": "run_id",
-              "value": "={{ $json.run_id }}"
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
-              "column": "company_domain",
-              "value": "={{ $json.company_domain }}"
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
-              "column": "pillar_scores",
-              "value": "={{ $json.pillar_scores }}"
+              "name": "Content-Type",
+              "value": "application/json"
             },
             {
-              "column": "composite_score",
-              "value": "={{ $json.composite_score }}"
-            },
-            {
-              "column": "confidence",
-              "value": "={{ $json.confidence }}"
-            },
-            {
-              "column": "risk_factors",
-              "value": "={{ $json.risk_factors }}"
-            },
-            {
-              "column": "reflection_passed",
-              "value": "={{ $json.reflection_passed }}"
+              "name": "Prefer",
+              "value": "return=minimal"
             }
           ]
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "run_id": "={{ $node[\"Webhook\"].json.run_id }}",
+          "company_domain": "={{ $node[\"Webhook\"].json.company_domain }}",
+          "composite_score": "={{ $node[\"Calculate Composite\"].json.composite_score }}",
+          "pillar_scores": "={{ JSON.stringify($node[\"Calculate Composite\"].json.pillar_scores) }}",
+          "confidence": "={{ $node[\"Calculate Composite\"].json.confidence }}",
+          "risk_factors": "={{ JSON.stringify($node[\"Calculate Composite\"].json.risk_factors) }}",
+          "reflection_passed": true,
+          "reflection_reasoning": "={{ $node[\"Parse Reflection\"].json.reflection_reasoning }}"
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     },
     {
+      "id": "update-queue-success",
+      "name": "Update Queue (Success)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3450, 200],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + encodeURIComponent($node['Webhook'].json.run_id) + '&company_domain=eq.' + encodeURIComponent($node['Webhook'].json.company_domain) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "status": "scored"
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      }
+    },
+    {
+      "id": "insert-score-needs-review",
+      "name": "Insert Score Card (Needs Review)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3250, 450],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/score_cards",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "run_id": "={{ $node[\"Webhook\"].json.run_id }}",
+          "company_domain": "={{ $node[\"Webhook\"].json.company_domain }}",
+          "composite_score": "={{ $node[\"Calculate Composite\"].json.composite_score }}",
+          "pillar_scores": "={{ JSON.stringify($node[\"Calculate Composite\"].json.pillar_scores) }}",
+          "confidence": "={{ $node[\"Calculate Composite\"].json.confidence }}",
+          "risk_factors": "={{ JSON.stringify($node[\"Calculate Composite\"].json.risk_factors) }}",
+          "reflection_passed": false,
+          "reflection_reasoning": "={{ $node[\"Parse Reflection\"].json.reflection_reasoning }}"
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      }
+    },
+    {
+      "id": "update-queue-needs-review",
       "name": "Update Queue (Needs Review)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [
-        2250,
-        460
-      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3450, 450],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE public.scenario_queue SET status = 'needs_review', updated_at = NOW() WHERE run_id = $1",
-        "additionalParameters": {
-          "queryReplacement": "={{ [$json.run_id] }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + encodeURIComponent($node['Webhook'].json.run_id) + '&company_domain=eq.' + encodeURIComponent($node['Webhook'].json.company_domain) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": {
+          "status": "needs_review"
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
         }
       }
     }
@@ -704,170 +759,124 @@
       "main": [
         [
           {
-            "node": "Prepare Scoring Context",
+            "node": "Build Scoring Context",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepare Scoring Context": {
+    "Build Scoring Context": {
       "main": [
         [
           {
-            "node": "DeepSeek - Company Fit",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DeepSeek - Move Intent",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DeepSeek - Growth Signal",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DeepSeek - Financial Health",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DeepSeek - Decision Maker Access",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DeepSeek - Network/Relationships",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DeepSeek - Opportunity Timing",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "DeepSeek - Evidence Quality",
+            "node": "Score Company Fit",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Company Fit": {
+    "Score Company Fit": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Score Move Intent",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Move Intent": {
+    "Score Move Intent": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Score Growth",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Growth Signal": {
+    "Score Growth": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Score Financial",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Financial Health": {
+    "Score Financial": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Score Decision Maker",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Decision Maker Access": {
+    "Score Decision Maker": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Score Network",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Network/Relationships": {
+    "Score Network": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Score Opportunity",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Opportunity Timing": {
+    "Score Opportunity": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Score Evidence",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek - Evidence Quality": {
+    "Score Evidence": {
       "main": [
         [
           {
-            "node": "Merge Results",
+            "node": "Calculate Composite",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Merge Results": {
+    "Calculate Composite": {
       "main": [
         [
           {
-            "node": "Aggregate Scores",
+            "node": "MiMo Reflection",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Aggregate Scores": {
-      "main": [
-        [
-          {
-            "node": "MiMo V2.5 Reflection",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "MiMo V2.5 Reflection": {
+    "MiMo Reflection": {
       "main": [
         [
           {
@@ -893,32 +902,32 @@
       "main": [
         [
           {
-            "node": "Insert Score Card (Passed)",
+            "node": "Insert Score Card (Success)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Insert Score Card (Failed)",
+            "node": "Insert Score Card (Needs Review)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Insert Score Card (Passed)": {
+    "Insert Score Card (Success)": {
       "main": [
         [
           {
-            "node": "Update Queue (Completed)",
+            "node": "Update Queue (Success)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Insert Score Card (Failed)": {
+    "Insert Score Card (Needs Review)": {
       "main": [
         [
           {
@@ -930,28 +939,19 @@
       ]
     }
   },
-  "pinData": {},
-  "versionId": "",
-  "createdAt": "2026-07-12T12:10:39.851Z",
-  "updatedAt": "2026-07-12T12:10:39.852Z",
   "settings": {
     "executionOrder": "v1"
   },
-  "staticData": null,
   "tags": [
     {
-      "name": "jasfo",
-      "id": ""
+      "name": "jasfo"
     },
     {
-      "name": "scoring",
-      "id": ""
+      "name": "scoring"
     },
     {
-      "name": "ai-pipeline",
-      "id": ""
+      "name": "b2b-lead-scoring"
     }
   ],
-  "active": false,
-  "id": "__WORKFLOW_ID__"
+  "active": false
 }

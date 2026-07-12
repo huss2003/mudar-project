@@ -1,12 +1,13 @@
 {
-  "name": "Jasfo - Weekly Master",
+  "name": "Jasfo Weekly Master",
   "nodes": [
     {
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "name": "Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [0, 300],
+      "position": [0, 0],
+      "positionAbsolute": [0, 0],
       "parameters": {
         "rule": {
           "interval": [
@@ -20,19 +21,35 @@
     },
     {
       "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-      "name": "Select Companies Pending",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [240, 300],
+      "name": "Load Companies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 0],
+      "positionAbsolute": [300, 0],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT *, to_char(CURRENT_DATE, 'IYYY-WIW') as scheduled_week FROM company_queue WHERE status = 'pending' AND scheduled_week = to_char(CURRENT_DATE, 'IYYY-WIW')",
-        "additionalParameters": {}
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/company_queue?status=eq.pending&select=*",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
+            }
+          ]
         }
       }
     },
@@ -41,24 +58,26 @@
       "name": "Validate Companies",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 300],
+      "position": [600, 0],
+      "positionAbsolute": [600, 0],
       "parameters": {
-        "language": "javaScript",
-        "code": "const items = $input.all();\nconst valid = [];\nconst invalid = [];\nconst runId = new Date().toISOString().replace(/[:.]/g, '-') + '-' + Math.random().toString(36).substring(2, 8);\n\nfor (const item of items) {\n  const company = item.json;\n  const name = company.company_name;\n  if (name && typeof name === 'string' && name.trim().length >= 2) {\n    valid.push({\n      json: {\n        ...company,\n        validated: true,\n        _meta: { run_id: runId }\n      }\n    });\n  } else {\n    invalid.push({\n      json: {\n        ...company,\n        validated: false,\n        _meta: { run_id: runId },\n        validation_reason: !name ? 'Missing company name' : 'Company name too short (< 2 chars)'\n      }\n    });\n  }\n}\n\nreturn [\n  {\n    json: {\n      _meta: {\n        run_id: runId,\n        total: items.length,\n        valid_count: valid.length,\n        invalid_count: invalid.length,\n        valid_companies: valid.map(v => v.json.company_name),\n        invalid_companies: invalid.map(v => v.json.company_name)\n      }\n    }\n  },\n  ...valid,\n  ...invalid\n];"
+        "mode": "raw",
+        "jsCode": "const items = $input.all();\nconst runId = Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 11);\n\nif (items.length === 0) {\n  return [{ json: { run_id: runId, total: 0, valid_count: 0, invalid_count: 0, validated: false, is_meta: true, empty: true } }];\n}\n\nconst valid = [];\nconst invalid = [];\n\nfor (const item of items) {\n  const name = item.json.company_name;\n  if (name && typeof name === 'string' && name.length >= 2) {\n    valid.push({ json: { ...item.json, run_id: runId, validated: true } });\n  } else {\n    invalid.push({ json: { ...item.json, run_id: runId, validated: false, reason: 'invalid_name' } });\n  }\n}\n\nreturn [\n  { json: { run_id: runId, total: items.length, valid_count: valid.length, invalid_count: invalid.length, validated: true, is_meta: true } },\n  ...valid,\n  ...invalid\n];"
       }
     },
     {
       "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
-      "name": "Route Valid Companies",
+      "name": "Route Valid",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [720, 300],
+      "typeVersion": 2,
+      "position": [900, 0],
+      "positionAbsolute": [900, 0],
       "parameters": {
         "conditions": {
           "string": [
             {
               "value1": "={{ $json.validated }}",
-              "operation": "equal",
+              "operation": "equals",
               "value2": true
             }
           ]
@@ -67,192 +86,326 @@
     },
     {
       "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
-      "name": "Delete Previous Queue",
-      "type": "n8n-nodes-base.postgres",
+      "name": "Extract Meta",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [960, 180],
+      "position": [1200, -250],
+      "positionAbsolute": [1200, -250],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "DELETE FROM scenario_queue WHERE run_id = $1",
-        "additionalParameters": {
-          "values": [
-            {
-              "parameterType": "expression",
-              "value": "={{ $items('Validate Companies').first().json._meta.run_id }}"
-            }
-          ]
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
-        }
+        "mode": "raw",
+        "jsCode": "const items = $input.all();\nconst meta = items.find(item => item.json.is_meta === true);\nif (meta) {\n  return [meta];\n}\nconst runId = items.length > 0 ? items[0].json.run_id : '';\nreturn [{ json: { run_id: runId, total: 0, valid_count: 0, invalid_count: 0, empty: true } }];"
       }
     },
     {
       "id": "f6a7b8c9-d0e1-2345-fabc-456789012345",
-      "name": "Insert Queue Items",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [1200, 180],
+      "name": "Telegram Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, -250],
+      "positionAbsolute": [1500, -250],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO scenario_queue (run_id, company_name, scenario_step, status, created_at) VALUES ($1, $2, $3, $4, NOW())",
-        "additionalParameters": {
-          "batchSize": 1,
-          "values": [
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8688503635:AAH4obxx3lGXYhoke1hR8mFJvoTvflVRrnE/sendMessage",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "parameterType": "expression",
-              "value": "={{ $items('Validate Companies').first().json._meta.run_id }}"
-            },
-            {
-              "parameterType": "expression",
-              "value": "={{ $json.company_name }}"
-            },
-            "discovery",
-            "pending"
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "-5497421027"
+            },
+            {
+              "name": "text",
+              "value": "🚀 *Weekly Queue Started*\nRun ID: `{{ $json.run_id }}`\nTotal companies: {{ $json.total }}\n✅ Valid: {{ $json.valid_count }}\n❌ Invalid: {{ $json.invalid_count }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
         }
       }
     },
     {
       "id": "a7b8c9d0-e1f2-3456-abcd-567890123456",
-      "name": "Telegram Start Notification",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [1440, 180],
+      "name": "Filter Companies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 0],
+      "positionAbsolute": [1200, 0],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "={{ -5497421027 }}",
-        "additionalFields": {},
-        "text": "🚀 *Jasfo Weekly Run Started*\n\n*Run ID:* {{ $items('Validate Companies').first().json._meta.run_id }}\n*Companies Queued:* {{ $items('Validate Companies').first().json._meta.valid_count }}\n*Invalid Skipped:* {{ $items('Validate Companies').first().json._meta.invalid_count }}\n*Started At:* {{ $now.format('YYYY-MM-DD HH:mm:ss') }}\n\nMonitoring every 30s for up to 90min...\n\n#Jasfo #WeeklyRun"
-      },
-      "credentials": {
-        "telegram": {
-          "id": "jasfo-telegram-bot",
-          "name": "Jasfo Telegram Bot"
-        }
+        "mode": "raw",
+        "jsCode": "const items = $input.all();\nconst companies = items.filter(item => item.json.validated === true && item.json.is_meta !== true);\nif (companies.length === 0) {\n  const runId = items.length > 0 ? items[0].json.run_id : '';\n  return [{ json: { run_id: runId, validated: true, company_name: '', empty: true } }];\n}\nreturn companies;"
       }
     },
     {
       "id": "b8c9d0e1-f2a3-4567-bcde-678901234567",
-      "name": "Setup Polling Iterations",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1680, 180],
+      "name": "Delete Old Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 0],
+      "positionAbsolute": [1500, 0],
       "parameters": {
-        "language": "javaScript",
-        "code": "const runId = $items('Validate Companies').first().json._meta.run_id;\nconst totalExpected = $items('Validate Companies').first().json._meta.valid_count;\nconst maxIterations = 180;\nconst iterations = [];\nfor (let i = 1; i <= maxIterations; i++) {\n  iterations.push({\n    json: {\n      iteration: i,\n      run_id: runId,\n      total_expected: totalExpected,\n      max_iterations: maxIterations\n    }\n  });\n}\nreturn iterations;"
+        "method": "DELETE",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + $json.run_id }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
       }
     },
     {
       "id": "c9d0e1f2-a3b4-5678-cdef-789012345678",
-      "name": "Polling Loop",
-      "type": "n8n-nodes-base.splitInBatches",
+      "name": "Insert Queue Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 0],
+      "positionAbsolute": [1800, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "run_id",
+              "value": "={{ $json.run_id }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "name": "scenario_step",
+              "value": "discovery"
+            },
+            {
+              "name": "status",
+              "value": "pending"
+            },
+            {
+              "name": "created_at",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d0e1f2a3-b4c5-6789-defa-890123456789",
+      "name": "Setup Polling",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1920, 180],
+      "position": [2100, 0],
+      "positionAbsolute": [2100, 0],
+      "parameters": {
+        "mode": "raw",
+        "jsCode": "const items = $input.all();\nlet runId = '';\nfor (const item of items) {\n  if (item.json.run_id) {\n    runId = item.json.run_id;\n    break;\n  }\n}\n$execution.context.shared = $execution.context.shared || {};\n$execution.context.shared.runId = runId;\n\nconst tickItems = [];\nfor (let i = 0; i < 180; i++) {\n  tickItems.push({ json: { run_id: runId, iteration: i + 1, total: 180 } });\n}\nreturn tickItems;"
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-901234567890",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [2400, 0],
+      "positionAbsolute": [2400, 0],
       "parameters": {
         "batchSize": 1,
         "options": {}
       }
     },
     {
-      "id": "d0e1f2a3-b4c5-6789-defa-890123456789",
-      "name": "Wait 30 Seconds",
+      "id": "f2a3b4c5-d6e7-8901-fabc-012345678901",
+      "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
-      "position": [2160, 80],
+      "position": [2700, -250],
+      "positionAbsolute": [2700, -250],
       "parameters": {
-        "resume": "time",
-        "waitTime": 30,
-        "keepExecution": "all"
-      }
-    },
-    {
-      "id": "e1f2a3b4-c5d6-7890-efab-901234567890",
-      "name": "Check Queue Progress",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2400, 80],
-      "parameters": {
-        "language": "javaScript",
-        "code": "const input = $input.first().json;\nreturn {\n  json: {\n    iteration: input.iteration,\n    run_id: input.run_id,\n    checked_at: new Date().toISOString(),\n    status: 'checked'\n  }\n};"
-      }
-    },
-    {
-      "id": "e1f2a3b5-c5d6-7890-efab-901234567891",
-      "name": "Take First Result",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2160, 420],
-      "parameters": {
-        "language": "javaScript",
-        "code": "return [$input.first()];"
-      }
-    },
-    {
-      "id": "f2a3b4c5-d6e7-8901-fabc-012345678901",
-      "name": "Select Final Results",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [2400, 420],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT status, COUNT(*)::int as count, ROUND(AVG(COALESCE(score, 0))::numeric, 2)::float as avg_score FROM scenario_queue WHERE run_id = $1 GROUP BY status ORDER BY status",
-        "additionalParameters": {
-          "values": [
-            {
-              "parameterType": "expression",
-              "value": "={{ $json.run_id }}"
-            }
-          ]
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "supabase-db",
-          "name": "Supabase DB"
-        }
+        "amount": 30,
+        "unit": "seconds"
       }
     },
     {
       "id": "a3b4c5d6-e7f8-9012-abcd-123456789012",
-      "name": "Aggregate Summary",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2640, 420],
+      "name": "Poll Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3000, -250],
+      "positionAbsolute": [3000, -250],
       "parameters": {
-        "language": "javaScript",
-        "code": "const items = $input.all();\nconst summary = {\n  total: 0,\n  completed: 0,\n  failed: 0,\n  pending: 0,\n  skipped: 0,\n  avg_score: 0,\n  breakdown: {}\n};\nlet totalScore = 0;\nlet scoreCount = 0;\nfor (const item of items) {\n  const row = item.json;\n  const status = row.status || 'unknown';\n  const count = parseInt(row.count) || 0;\n  summary.total += count;\n  summary[status] = (summary[status] || 0) + count;\n  summary.breakdown[status] = count;\n  if (row.avg_score && count > 0) {\n    totalScore += parseFloat(row.avg_score) * count;\n    scoreCount += count;\n  }\n}\nsummary.avg_score = scoreCount > 0 ? Math.round((totalScore / scoreCount) * 100) / 100 : 0;\nsummary.completion_pct = summary.total > 0 ? Math.round((summary.completed / summary.total) * 10000) / 100 : 0;\nsummary.run_id = $items('Setup Polling Iterations').first().json.run_id;\nreturn { json: summary };"
+        "method": "GET",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + $json.run_id + '&select=status' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
       }
     },
     {
       "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
-      "name": "Telegram Completion Report",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [2880, 420],
+      "name": "Prepare Final Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2700, 150],
+      "positionAbsolute": [2700, 150],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "={{ -5497421027 }}",
-        "additionalFields": {},
-        "text": "✅ *Jasfo Weekly Run Complete*\n\n*Run ID:* {{ $json.run_id }}\n*Total Processed:* {{ $json.total }}\n*Completed:* {{ $json.completed }}\n*Failed:* {{ $json.failed }}\n*Pending:* {{ $json.pending }}\n*Skipped:* {{ $json.skipped }}\n*Avg Score:* {{ $json.avg_score }}\n*Completion:* {{ $json.completion_pct }}%\n\n#Jasfo #WeeklyRun"
-      },
-      "credentials": {
-        "telegram": {
-          "id": "jasfo-telegram-bot",
-          "name": "Jasfo Telegram Bot"
+        "mode": "raw",
+        "jsCode": "const runId = ($execution.context.shared && $execution.context.shared.runId) || '';\nreturn [{ json: { run_id: runId } }];"
+      }
+    },
+    {
+      "id": "c5d6e7f8-a9b0-1234-cdef-345678901234",
+      "name": "Final Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3000, 150],
+      "positionAbsolute": [3000, 150],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + $json.run_id + '&select=status' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         }
       }
+    },
+    {
+      "id": "d6e7f8a9-b0c1-2345-defa-456789012345",
+      "name": "Aggregate Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3300, 150],
+      "positionAbsolute": [3300, 150],
+      "parameters": {
+        "mode": "raw",
+        "jsCode": "const items = $input.all();\nconst runId = items.length > 0 ? (items[0].json.run_id || '') : '';\nconst counts = {};\nfor (const item of items) {\n  const status = item.json.status || 'unknown';\n  counts[status] = (counts[status] || 0) + 1;\n}\nreturn [{\n  json: {\n    run_id: runId,\n    total: items.length,\n    completed: counts.completed || 0,\n    failed: counts.failed || 0,\n    pending: counts.pending || 0,\n    processing: counts.processing || 0\n  }\n}];"
+      }
+    },
+    {
+      "id": "e7f8a9b0-c1d2-3456-efab-567890123456",
+      "name": "Telegram Completion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3600, 150],
+      "positionAbsolute": [3600, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8688503635:AAH4obxx3lGXYhoke1hR8mFJvoTvflVRrnE/sendMessage",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "-5497421027"
+            },
+            {
+              "name": "text",
+              "value": "✅ *Weekly Queue Complete*\nRun ID: `{{ $json.run_id }}`\nTotal processed: {{ $json.total }}\n✅ Completed: {{ $json.completed }}\n❌ Failed: {{ $json.failed }}\n⏳ Pending: {{ $json.pending }}\n⚙️ Processing: {{ $json.processing }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f8a9b0c1-d2e3-4567-fabc-678901234567",
+      "name": "NoOp",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 250],
+      "positionAbsolute": [1200, 250],
+      "parameters": {}
     }
   ],
   "connections": {
@@ -260,14 +413,14 @@
       "main": [
         [
           {
-            "node": "Select Companies Pending",
+            "node": "Load Companies",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Select Companies Pending": {
+    "Load Companies": {
       "main": [
         [
           {
@@ -282,26 +435,59 @@
       "main": [
         [
           {
-            "node": "Route Valid Companies",
+            "node": "Route Valid",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Route Valid Companies": {
+    "Route Valid": {
       "main": [
         [
           {
-            "node": "Delete Previous Queue",
+            "node": "Extract Meta",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Companies",
             "type": "main",
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "NoOp",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Delete Previous Queue": {
+    "Extract Meta": {
+      "main": [
+        [
+          {
+            "node": "Telegram Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Companies": {
+      "main": [
+        [
+          {
+            "node": "Delete Old Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Old Queue": {
       "main": [
         [
           {
@@ -316,76 +502,65 @@
       "main": [
         [
           {
-            "node": "Telegram Start Notification",
+            "node": "Setup Polling",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Telegram Start Notification": {
+    "Setup Polling": {
       "main": [
         [
           {
-            "node": "Setup Polling Iterations",
+            "node": "Split In Batches",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Setup Polling Iterations": {
+    "Split In Batches": {
       "main": [
         [
           {
-            "node": "Polling Loop",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Polling Loop": {
-      "main": [
-        [
-          {
-            "node": "Wait 30 Seconds",
+            "node": "Prepare Final Query",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Take First Result",
+            "node": "Wait",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Wait 30 Seconds": {
+    "Wait": {
       "main": [
         [
           {
-            "node": "Check Queue Progress",
+            "node": "Poll Queue",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Take First Result": {
+    "Prepare Final Query": {
       "main": [
         [
           {
-            "node": "Select Final Results",
+            "node": "Final Query",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Select Final Results": {
+    "Final Query": {
       "main": [
         [
           {
@@ -400,7 +575,7 @@
       "main": [
         [
           {
-            "node": "Telegram Completion Report",
+            "node": "Telegram Completion",
             "type": "main",
             "index": 0
           }
@@ -408,25 +583,7 @@
       ]
     }
   },
-  "settings": {
-    "executionOrder": "v1",
-    "timezone": "UTC",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
-  },
+  "settings": {},
   "staticData": null,
-  "tags": [
-    {
-      "name": "jasfo",
-      "id": "tag-jasfo"
-    },
-    {
-      "name": "weekly",
-      "id": "tag-weekly"
-    },
-    {
-      "name": "master",
-      "id": "tag-master"
-    }
-  ]
+  "tags": []
 }
