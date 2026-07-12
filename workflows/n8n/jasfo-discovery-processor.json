@@ -7,7 +7,7 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [250, 300],
-      "parameters": { "rule": { "interval": [{ "field": "cron", "expression": "*/30 * * * 1" }] } }
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "*/30 * * * 1" }] } }
     },
     {
       "id": "a1b2c3d4-e5f6-4a90-abcd-000000000002",

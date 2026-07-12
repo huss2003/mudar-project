@@ -11,7 +11,7 @@
         "rule": {
           "interval": [
             {
-              "field": "cron",
+              "field": "cronExpression",
               "expression": "0 9 * * 1"
             }
           ]
