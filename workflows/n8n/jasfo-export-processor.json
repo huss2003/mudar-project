@@ -1,0 +1,276 @@
+{
+  "name": "JASFO Export Processor",
+  "nodes": [
+    {
+      "id": "c1d2e3f4-0001-4000-8000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "cronExpression": "*/30 * * * 1-2",
+          "interval": null
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-0002-4000-8000-000000000002",
+      "name": "Load Export Ready Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [250, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?next_step=eq.export_ready&select=*&limit=10",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-0003-4000-8000-000000000003",
+      "name": "Batch Processor",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [500, 0],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "c1d2e3f4-0004-4000-8000-000000000004",
+      "name": "Load Score Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/score_cards?company_domain=eq.' + encodeURIComponent($json.company_domain || '') + '&run_id=eq.' + encodeURIComponent($json.run_id || '') + '&select=*' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-0005-4000-8000-000000000005",
+      "name": "Load AI Extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/ai_extractions?company_domain=eq.' + encodeURIComponent($json.company_domain || '') + '&select=*' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1d2e3f4-0006-4000-8000-000000000006",
+      "name": "Build Telegram Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 0],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const item = $input.first().json;\n\nconst scoreCard = item.data && item.data.length > 0 ? item.data : [];\nconst score = scoreCard[0] || {};\nconst extraction = item.data_ai && item.data_ai.length > 0 ? item.data_ai[0] : {};\n\nconst companyName = score.company_name || score.company_domain || 'Unknown';\nconst composite = score.composite_score || score.adjusted_score || 0;\nconst pillars = score.pillars || [];\nconst risks = score.key_risks || score.risk_factors || [];\nconst recommendation = score.recommendation || 'N/A';\nconst companyData = extraction.company_data || {};\n\nlet pillarsBlock = 'No pillar scores available.';\nif (pillars.length > 0) {\n  pillarsBlock = pillars.map(p => `├ ${p.label}: *${p.score}/100* (${p.weight * 100}%) -> ${p.weighted_score} pts`).join('\\n');\n}\n\nlet risksBlock = 'None identified';\nif (risks.length > 0) {\n  risksBlock = risks.map(r => `⚠️ ${r}`).join('\\n');\n}\n\nconst desc = companyData.company_description || '';\nconst descTrimmed = desc.length > 300 ? desc.substring(0, 300) + '...' : desc;\n\nconst message = `🏢 *JASFO Score Report*\\n\\n📌 *${companyName}*\\n${score.company_domain ? '🌐 ' + score.company_domain : ''}\\n${descTrimmed ? '\\n' + descTrimmed : ''}\\n\\n📊 *Overall Score: ${composite}/100*\\n${recommendation ? '\\n💡 *Recommendation:* ' + recommendation : ''}\\n\\n*Pillar Breakdown:*\\n${pillarsBlock}\\n\\n*Risk Factors:*\\n${risksBlock}\\n\\n📅 ${new Date().toISOString().split('T')[0]} | JASFO Intelligence`;\n\nreturn [{\n  json: {\n    run_id: score.run_id || item.run_id || '',\n    company_domain: score.company_domain || item.company_domain || '',\n    company_name: companyName,\n    score_card: score,\n    telegram_message: message\n  }\n}];"
+      }
+    },
+    {
+      "id": "c1d2e3f4-0007-4000-8000-000000000007",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8688503635:AAH4obxx3lGXYhoke1hR8mFJvoTvflVRrnE/sendMessage",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  chat_id: '-5497421027',\n  text: $json.telegram_message,\n  parse_mode: 'Markdown'\n}) }}"
+      }
+    },
+    {
+      "id": "c1d2e3f4-0008-4000-8000-000000000008",
+      "name": "Archive Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/report_archive",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  run_id: $json.run_id,\n  company_domain: $json.company_domain,\n  company_name: $json.company_name,\n  score_card: $json.score_card,\n  telegram_message: $json.telegram_message,\n  archived_at: new Date().toISOString()\n}) }}"
+      }
+    },
+    {
+      "id": "c1d2e3f4-0009-4000-8000-000000000009",
+      "name": "Update Queue to Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 0],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + encodeURIComponent($json.run_id) + '&company_domain=eq.' + encodeURIComponent($json.company_domain) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  next_step: 'done',\n  updated_at: new Date().toISOString()\n}) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          { "node": "Load Export Ready Items", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load Export Ready Items": {
+      "main": [
+        [
+          { "node": "Batch Processor", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Batch Processor": {
+      "main": [
+        [
+          { "node": "Load Score Card", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load Score Card": {
+      "main": [
+        [
+          { "node": "Load AI Extraction", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load AI Extraction": {
+      "main": [
+        [
+          { "node": "Build Telegram Message", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Telegram Message": {
+      "main": [
+        [
+          { "node": "Send Telegram", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send Telegram": {
+      "main": [
+        [
+          { "node": "Archive Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Archive Report": {
+      "main": [
+        [
+          { "node": "Update Queue to Done", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "UTC"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "versionId": "01234567-89ab-cdef-0123-456789abcdef",
+  "triggerCount": 0
+}

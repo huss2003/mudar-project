@@ -1,0 +1,572 @@
+{
+  "name": "JASFO Scoring Processor",
+  "nodes": [
+    {
+      "id": "b1c2d3e4-0001-4000-8000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "cronExpression": "*/30 * * * 1-2",
+          "interval": null
+        }
+      }
+    },
+    {
+      "id": "b1c2d3e4-0002-4000-8000-000000000002",
+      "name": "Load Scoring Ready Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [250, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?next_step=eq.scoring_ready&select=*&order=updated_at.asc&limit=3",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1c2d3e4-0003-4000-8000-000000000003",
+      "name": "Batch Processor",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [500, 0],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "b1c2d3e4-0004-4000-8000-000000000004",
+      "name": "Load AI Extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/ai_extractions?company_domain=eq.' + encodeURIComponent($json.company_domain || '') + '&run_id=eq.' + encodeURIComponent($json.run_id || '') + '&select=*' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1c2d3e4-0005-4000-8000-000000000005",
+      "name": "Build Scoring Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 0],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const item = $input.first().json;\n\nconst extraction = item.data && item.data.length > 0 ? item.data[0].company_data : (item.company_data || {});\nconst runId = item.run_id || '';\nconst domain = item.company_domain || '';\n\nconst context = {\n  company_name: extraction.company_name || domain,\n  description: extraction.company_description || '',\n  domain: domain,\n  run_id: runId,\n  employees: extraction.employees || null,\n  founded: extraction.founded || null,\n  location: extraction.location || '',\n  technology_stack: extraction.technology_stack || [],\n  products: extraction.products || [],\n  market_position: extraction.market_position || '',\n  competitors: extraction.competitors || [],\n  recent_news: extraction.recent_news || [],\n  funding: extraction.funding || {},\n  key_personnel: extraction.key_personnel || []\n};\n\nconst companyStr = context.company_name;\nconst contextStr = JSON.stringify(context, null, 2);\n\nconst pillars = [\n  { key: 'company_fit', label: 'Company Fit', weight: 0.10, desc: 'How well does this company align with our ideal customer profile? Consider industry, size, location, and product-market fit.' },\n  { key: 'move_intent', label: 'Move Intent', weight: 0.35, desc: 'How strong is the signal that this company is actively looking to move or switch providers? Look for RFPs, contract end dates, pain points, expansion plans.' },\n  { key: 'growth', label: 'Growth Signal', weight: 0.15, desc: 'What growth indicators exist? Hiring, fundraising, expansion, new product launches, market share increases.' },\n  { key: 'financial', label: 'Financial Health', weight: 0.12, desc: 'Assess financial stability, funding, revenue trajectory, and ability to pay. Consider funding rounds, revenue range, employee growth.' },\n  { key: 'decision_maker', label: 'Decision Maker Access', weight: 0.10, desc: 'How accessible are key decision makers? Do we have relationships, warm intros, or connections to executives?' },\n  { key: 'network', label: 'Network Strength', weight: 0.08, desc: 'How strong is our existing network connection to this company? Shared investors, board connections, partner relationships.' },\n  { key: 'opportunity', label: 'Opportunity Timing', weight: 0.05, desc: 'Is the timing right? Consider market events, recent changes, competitive landscape shifts, seasonal factors.' },\n  { key: 'evidence', label: 'Evidence Quality', weight: 0.05, desc: 'How reliable and complete is the data we have on this company? Data freshness, source credibility, information density.' }\n];\n\nreturn [{\n  json: {\n    run_id: runId,\n    company_domain: domain,\n    company_name: context.company_name,\n    context_summary: contextStr,\n    pillars: pillars,\n    source_extraction: extraction\n  }\n}];"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0006-4000-8000-000000000006",
+      "name": "Score: Company Fit (10%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, -350],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Company Fit (0-100). Weight: 10%.\\n\\nDescription: How well does this company align with our ideal customer profile? Consider industry, size, location, and product-market fit.\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0007-4000-8000-000000000007",
+      "name": "Score: Move Intent (35%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, -250],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Move Intent (0-100). Weight: 35%.\\n\\nDescription: How strong is the signal that this company is actively looking to move or switch providers? Look for RFPs, contract end dates, pain points, expansion plans.\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0008-4000-8000-000000000008",
+      "name": "Score: Growth (15%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, -150],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Growth Signal (0-100). Weight: 15%.\\n\\nDescription: What growth indicators exist? Hiring, fundraising, expansion, new product launches, market share increases.\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0009-4000-8000-000000000009",
+      "name": "Score: Financial (12%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, -50],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Financial Health (0-100). Weight: 12%.\\n\\nDescription: Assess financial stability, funding, revenue trajectory, and ability to pay. Consider funding rounds, revenue range, employee growth.\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0010-4000-8000-000000000010",
+      "name": "Score: Decision Maker (10%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 50],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Decision Maker Access (0-100). Weight: 10%.\\n\\nDescription: How accessible are key decision makers? Do we have relationships, warm intros, or connections to executives?\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0011-4000-8000-000000000011",
+      "name": "Score: Network (8%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Network Strength (0-100). Weight: 8%.\\n\\nDescription: How strong is our existing network connection to this company? Shared investors, board connections, partner relationships.\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0012-4000-8000-000000000012",
+      "name": "Score: Opportunity (5%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 250],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Opportunity Timing (0-100). Weight: 5%.\\n\\nDescription: Is the timing right? Consider market events, recent changes, competitive landscape shifts, seasonal factors.\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0013-4000-8000-000000000013",
+      "name": "Score: Evidence (5%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 350],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You are a sales scoring AI. Score companies 0-100 on a single pillar. Return JSON only.' },\n    { role: 'user', content: 'Score ' + ($json.company_name || 'Unknown') + ' on Evidence Quality (0-100). Weight: 5%.\\n\\nDescription: How reliable and complete is the data we have on this company? Data freshness, source credibility, information density.\\n\\nCompany context:\\n' + ($json.context_summary || 'No context') + '\\n\\nReturn JSON: { \"score\": N, \"justification\": \"...\", \"evidence\": \"...\" }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 2048,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0014-4000-8000-000000000014",
+      "name": "Aggregate Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 0],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const items = $input.all();\n\nconst pillarWeights = {\n  company_fit: 0.10,\n  move_intent: 0.35,\n  growth: 0.15,\n  financial: 0.12,\n  decision_maker: 0.10,\n  network: 0.08,\n  opportunity: 0.05,\n  evidence: 0.05\n};\n\nconst pillarLabels = {\n  company_fit: 'Company Fit',\n  move_intent: 'Move Intent',\n  growth: 'Growth Signal',\n  financial: 'Financial Health',\n  decision_maker: 'Decision Maker Access',\n  network: 'Network Strength',\n  opportunity: 'Opportunity Timing',\n  evidence: 'Evidence Quality'\n};\n\nconst scores = {};\nlet compositeScore = 0;\nlet totalJustifications = [];\n\nfor (const item of items) {\n  const json = item.json;\n  const content = json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;\n  if (!content) continue;\n\n  try {\n    const parsed = JSON.parse(content);\n    const nodeName = json._node || '';\n    const pillarKey = Object.keys(pillarLabels).find(k => nodeName.toLowerCase().includes(k.replace(/_/g, '')) || nodeName.includes(k)) || '';\n\n    if (pillarKey) {\n      scores[pillarKey] = {\n        score: Math.round(Math.max(0, Math.min(100, parsed.score || 0))),\n        weight: pillarWeights[pillarKey],\n        justification: parsed.justification || '',\n        evidence: parsed.evidence || ''\n      };\n      compositeScore += scores[pillarKey].score * pillarWeights[pillarKey];\n      totalJustifications.push(`${pillarLabels[pillarKey]}: ${parsed.justification || ''}`);\n    }\n  } catch (e) {\n    // skip failed parse\n  }\n}\n\ncompositeScore = Math.round(compositeScore);\n\nreturn [{\n  json: {\n    run_id: items[0]?.json.run_id || '',\n    company_domain: items[0]?.json.company_domain || '',\n    company_name: items[0]?.json.company_name || '',\n    composite_score: compositeScore,\n    scores: scores,\n    pillars: Object.entries(scores).map(([k, v]) => ({\n      key: k,\n      label: pillarLabels[k],\n      score: v.score,\n      weight: v.weight,\n      weighted_score: Math.round(v.score * v.weight),\n      justification: v.justification,\n      evidence: v.evidence\n    })),\n    risk_factors: compositeScore < 50 ? ['Low overall score - review required'] : [],\n    summary: `Overall score: ${compositeScore}/100. Top pillar: ${Object.entries(scores).sort((a, b) => b[1].score - a[1].score)[0]?.[0] || 'N/A'}.`\n  }\n}];"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0015-4000-8000-000000000015",
+      "name": "MiMo Reflection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  model: 'mimo-v2.5',\n  messages: [\n    { role: 'system', content: 'You are a senior sales strategist reviewing AI-generated scores. Provide a reflection and final recommendation.' },\n    { role: 'user', content: 'Review these scores for ' + ($json.company_name || 'Unknown') + ' and provide a final recommendation:\\n\\n' + JSON.stringify($json, null, 2) + '\\n\\nReturn JSON: { \"reflection\": \"...\", \"recommendation\": \"...\", \"adjusted_score\": N, \"key_risks\": [...], \"next_steps\": [...] }' }\n  ],\n  temperature: 0.1,\n  max_tokens: 4096,\n  response_format: { type: 'json_object' }\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0016-4000-8000-000000000016",
+      "name": "Parse Reflection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 0],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const item = $input.first().json;\n\nlet reflection = {};\nconst content = item.choices && item.choices[0] && item.choices[0].message && item.choices[0].message.content;\n\nif (content) {\n  try {\n    reflection = JSON.parse(content);\n  } catch (e) {\n    try {\n      const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n      reflection = JSON.parse(cleaned);\n    } catch (e2) {\n      reflection = { reflection: 'Failed to parse', recommendation: 'Manual review needed' };\n    }\n  }\n}\n\nconst scores = item.scores || {};\nconst pillars = item.pillars || [];\n\nreturn [{\n  json: {\n    run_id: item.run_id || '',\n    company_domain: item.company_domain || '',\n    company_name: item.company_name || '',\n    composite_score: item.composite_score || reflection.adjusted_score || 0,\n    original_composite: item.composite_score || 0,\n    adjusted_score: reflection.adjusted_score || item.composite_score || 0,\n    reflection: reflection.reflection || '',\n    recommendation: reflection.recommendation || '',\n    key_risks: reflection.key_risks || [],\n    next_steps: reflection.next_steps || [],\n    scores: scores,\n    pillars: pillars,\n    risk_factors: item.risk_factors || []\n  }\n}];"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0017-4000-8000-000000000017",
+      "name": "Insert Score Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2250, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/score_cards",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  run_id: $json.run_id,\n  company_domain: $json.company_domain,\n  company_name: $json.company_name,\n  composite_score: $json.composite_score,\n  adjusted_score: $json.adjusted_score,\n  pillars: $json.pillars,\n  scores: $json.scores,\n  reflection: $json.reflection,\n  recommendation: $json.recommendation,\n  key_risks: $json.key_risks,\n  next_steps: $json.next_steps,\n  risk_factors: $json.risk_factors\n}) }}"
+      }
+    },
+    {
+      "id": "b1c2d3e4-0018-4000-8000-000000000018",
+      "name": "Update Queue to Export Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2500, 0],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + encodeURIComponent($json.run_id) + '&company_domain=eq.' + encodeURIComponent($json.company_domain) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  next_step: 'export_ready',\n  updated_at: new Date().toISOString()\n}) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          { "node": "Load Scoring Ready Items", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load Scoring Ready Items": {
+      "main": [
+        [
+          { "node": "Batch Processor", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Batch Processor": {
+      "main": [
+        [
+          { "node": "Load AI Extraction", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load AI Extraction": {
+      "main": [
+        [
+          { "node": "Build Scoring Context", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Scoring Context": {
+      "main": [
+        [
+          { "node": "Score: Company Fit (10%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Company Fit (10%)": {
+      "main": [
+        [
+          { "node": "Score: Move Intent (35%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Move Intent (35%)": {
+      "main": [
+        [
+          { "node": "Score: Growth (15%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Growth (15%)": {
+      "main": [
+        [
+          { "node": "Score: Financial (12%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Financial (12%)": {
+      "main": [
+        [
+          { "node": "Score: Decision Maker (10%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Decision Maker (10%)": {
+      "main": [
+        [
+          { "node": "Score: Network (8%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Network (8%)": {
+      "main": [
+        [
+          { "node": "Score: Opportunity (5%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Opportunity (5%)": {
+      "main": [
+        [
+          { "node": "Score: Evidence (5%)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score: Evidence (5%)": {
+      "main": [
+        [
+          { "node": "Aggregate Scores", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Aggregate Scores": {
+      "main": [
+        [
+          { "node": "MiMo Reflection", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "MiMo Reflection": {
+      "main": [
+        [
+          { "node": "Parse Reflection", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Reflection": {
+      "main": [
+        [
+          { "node": "Insert Score Card", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Score Card": {
+      "main": [
+        [
+          { "node": "Update Queue to Export Ready", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "UTC"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "versionId": "a0b1c2d3-4e5f-6789-abcd-ef0123456789",
+  "triggerCount": 0
+}
