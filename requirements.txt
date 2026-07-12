@@ -1,0 +1,7 @@
+mkdocs-material
+mkdocs-awesome-pages
+mkdocs-git-revision-date-localized
+mkdocs-mermaid2-plugin
+mkdocs-minify-plugin
+mkdocs-macros-plugin
+mkdocs-glightbox

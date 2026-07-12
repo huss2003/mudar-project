@@ -1,0 +1,470 @@
+# ============================================================================
+# Jasfo Lead Intelligence Platform
+# Master PRD v4.0
+# MkDocs Material Configuration
+# ============================================================================
+
+site_name: Jasfo Lead Intelligence Platform
+site_description: >
+  AI-Powered Commercial Real Estate Intelligence Platform.
+  Master PRD, Architecture, AI Agents, Database,
+  Make.com Workflows, Firecrawl Strategy,
+  OpenCode GO Routing and Claude Judge Documentation.
+
+site_author: Hussain Singapuri
+
+repo_name: huss2003/mudar-project
+repo_url: https://github.com/huss2003/mudar-project
+
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+site_dir: site
+
+copyright: >
+  © Jasfo Commercial Intelligence Platform
+
+
+# ============================================================================
+# THEME
+# ============================================================================
+
+theme:
+
+  name: material
+
+  language: en
+
+  logo: assets/logo.png
+
+  favicon: assets/favicon.png
+
+  icon:
+
+    repo: fontawesome/brands/github
+
+  palette:
+
+    # Light Theme
+
+    - scheme: default
+
+      primary: blue
+
+      accent: indigo
+
+      toggle:
+
+        icon: material/weather-night
+
+        name: Switch to Dark Mode
+
+    # Dark Theme
+
+    - scheme: slate
+
+      primary: blue
+
+      accent: cyan
+
+      toggle:
+
+        icon: material/weather-sunny
+
+        name: Switch to Light Mode
+
+  features:
+
+    # Navigation
+
+    - navigation.instant
+    - navigation.instant.progress
+
+    - navigation.tabs
+
+    - navigation.sections
+
+    - navigation.expand
+
+    - navigation.top
+
+    - navigation.tracking
+
+    - navigation.footer
+
+    - navigation.indexes
+
+    # Search
+
+    - search.suggest
+
+    - search.highlight
+
+    - search.share
+
+    # Content
+
+    - content.code.copy
+
+    - content.code.annotate
+
+    - content.tabs.link
+
+    - content.tooltips
+
+    - content.action.edit
+
+    - content.action.view
+
+    # TOC
+
+    - toc.follow
+
+
+
+# ============================================================================
+# PLUGINS
+# ============================================================================
+
+plugins:
+
+  - search
+
+  - tags
+
+  - awesome-pages
+
+  - git-revision-date-localized
+
+  - mermaid2
+
+  - minify
+
+  - macros
+
+  - glightbox
+
+
+
+# ============================================================================
+# MARKDOWN EXTENSIONS
+# ============================================================================
+
+markdown_extensions:
+
+  - admonition
+
+  - attr_list
+
+  - def_list
+
+  - footnotes
+
+  - tables
+
+  - md_in_html
+
+  - toc:
+
+      permalink: true
+
+      toc_depth: 4
+
+  - pymdownx.details
+
+  - pymdownx.superfences
+
+  - pymdownx.tabbed:
+
+      alternate_style: true
+
+  - pymdownx.highlight
+
+  - pymdownx.inlinehilite
+
+  - pymdownx.snippets
+
+  - pymdownx.keys
+
+  - pymdownx.emoji
+
+  - pymdownx.caret
+
+  - pymdownx.mark
+
+  - pymdownx.tilde
+
+  - pymdownx.tasklist:
+
+      custom_checkbox: true
+
+  - pymdownx.magiclink
+
+  - pymdownx.smartsymbols
+
+
+
+# ============================================================================
+# EXTRA CSS
+# ============================================================================
+
+extra_css:
+
+  - stylesheets/extra.css
+
+
+
+# ============================================================================
+# EXTRA JS
+# ============================================================================
+
+extra_javascript:
+
+  - javascripts/extra.js
+
+
+
+# ============================================================================
+# EXTRA
+# ============================================================================
+
+extra:
+
+  generator: false
+
+  social:
+
+    - icon: fontawesome/brands/github
+
+      link: https://github.com/huss2003
+
+    - icon: material/web
+
+      link: https://jasfo.ai
+
+  version:
+
+    provider: mike
+
+
+
+# ============================================================================
+# NAVIGATION
+# ============================================================================
+
+nav:
+
+# ------------------------------------------------------------------------
+# Home
+# ------------------------------------------------------------------------
+
+- Home:
+
+  - Overview: index.md
+
+  - Getting Started: getting-started.md
+
+# ------------------------------------------------------------------------
+# Vision
+# ------------------------------------------------------------------------
+
+- Vision:
+
+  - Overview: vision/overview.md
+
+  - Business Model: vision/business-model.md
+
+  - Goals: vision/goals.md
+
+  - Success Metrics: vision/success-metrics.md
+
+  - Personas: vision/personas.md
+
+# ------------------------------------------------------------------------
+# Architecture
+# ------------------------------------------------------------------------
+
+- Architecture:
+
+  - Overview: architecture/overview.md
+
+  - 14 Layer System: architecture/14-layer-system.md
+
+  - System Diagrams: architecture/system-diagrams.md
+
+  - Data Flow: architecture/data-flow.md
+
+  - Sequence Diagrams: architecture/sequence.md
+
+  - ADR Index: architecture/adr-index.md
+
+# ------------------------------------------------------------------------
+# AI
+# ------------------------------------------------------------------------
+
+- AI:
+
+  - AI Overview: ai/overview.md
+
+  - Model Routing: ai/model-routing.md
+
+  - Specialist Agents: ai/agents.md
+
+  - Reflection System: ai/reflection.md
+
+  - Consensus Engine: ai/consensus.md
+
+  - Claude Judge: ai/claude-judge.md
+
+  - Prompt Standards: ai/prompt-standards.md
+
+# ------------------------------------------------------------------------
+# Make
+# ------------------------------------------------------------------------
+
+- Make.com:
+
+  - Overview: make/overview.md
+
+  - Weekly Scenario: make/weekly-workflow.md
+
+  - Routers: make/routers.md
+
+  - HTTP Modules: make/http.md
+
+  - Error Handling: make/errors.md
+
+# ------------------------------------------------------------------------
+# Firecrawl
+# ------------------------------------------------------------------------
+
+- Firecrawl:
+
+  - Overview: scraping/firecrawl.md
+
+  - Crawl Strategy: scraping/strategy.md
+
+  - Credit Optimization: scraping/credits.md
+
+# ------------------------------------------------------------------------
+# Database
+# ------------------------------------------------------------------------
+
+- Database:
+
+  - Schema: database/schema.md
+
+  - Tables: database/tables.md
+
+  - Views: database/views.md
+
+  - Functions: database/functions.md
+
+  - Policies: database/rls.md
+
+# ------------------------------------------------------------------------
+# Lead Intelligence
+# ------------------------------------------------------------------------
+
+- Lead Engine:
+
+  - Scoring: lead-engine/scoring.md
+
+  - Lead Memory: lead-engine/memory.md
+
+  - Change Detection: lead-engine/change-detection.md
+
+  - Evidence Engine: lead-engine/evidence.md
+
+# ------------------------------------------------------------------------
+# Exports
+# ------------------------------------------------------------------------
+
+- Exports:
+
+  - CSV: exports/csv.md
+
+  - Excel: exports/excel.md
+
+  - PDF: exports/pdf.md
+
+# ------------------------------------------------------------------------
+# APIs
+# ------------------------------------------------------------------------
+
+- API:
+
+  - Firecrawl
+
+  - OpenRouter
+
+  - OpenCode GO
+
+  - Hunter
+
+  - Apollo
+
+  - Snov
+
+  - Supabase
+
+  - Telegram
+
+# ------------------------------------------------------------------------
+# Deployment
+# ------------------------------------------------------------------------
+
+- Deployment:
+
+  - Railway
+
+  - Cloudflare
+
+  - Supabase
+
+  - GitHub
+
+# ------------------------------------------------------------------------
+# Testing
+# ------------------------------------------------------------------------
+
+- Testing:
+
+  - Prompt Testing
+
+  - Regression
+
+  - AI Evaluation
+
+  - Performance
+
+# ------------------------------------------------------------------------
+# Roadmap
+# ------------------------------------------------------------------------
+
+- Roadmap:
+
+  - Phase 1
+
+  - Phase 2
+
+  - Phase 3
+
+  - Enterprise
+
+# ------------------------------------------------------------------------
+# Appendix
+# ------------------------------------------------------------------------
+
+- Appendix:
+
+  - Glossary
+
+  - Naming Convention
+
+  - Coding Standards
+
+  - ADR
+
+  - AI Context Pack
