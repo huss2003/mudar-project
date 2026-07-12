@@ -1,0 +1,432 @@
+{
+  "name": "Jasfo v2 - Discovery Planner",
+  "nodes": [
+    {
+      "id": "2a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Every 15min (Mon)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Load Pending Planner Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/planner_runs?status=eq.planning&select=*&limit=1",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2c3d4e5f-6a7b-4c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Run Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id != null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "2d4e5f6a-7b8c-4d0e-1f2a-3b4c5d6e7f8a",
+      "name": "Load ICP Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/icp_profiles?id=eq.' + encodeURIComponent($json.icp_id) + '&select=*' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2e5f6a7b-8c9d-4e1f-2a3b-4c5d6e7f8a9b",
+      "name": "Build Planner Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const run = $node['Run Found?'].json;\nconst icpData = $json;\nconst icp = {\n  id: icpData.id || run.icp_id,\n  name: icpData.name || 'Unknown',\n  industry: icpData.industry || '',\n  description: icpData.description || '',\n  target_markets: icpData.target_markets || [],\n  keywords: icpData.keywords || []\n};\n\nconst prompt = `You are an ICP discovery planner for Jasfo. Plan a discovery cycle for this ICP:\n\nICP Name: ${icp.name}\nIndustry: ${icp.industry}\nDescription: ${icp.description}\nTarget Markets: ${JSON.stringify(icp.target_markets)}\nKeywords: ${JSON.stringify(icp.keywords)}\n\nRespond with JSON:\n{\n  \"strategy\": \"brief strategy\",\n  \"sources\": [\"google_maps\", \"indiamart\", \"tradeindia\", \"github\", \"rss\"],\n  \"priority_focus\": \"industry vertical\",\n  \"estimated_companies\": number\n}`;\n\nreturn [{ json: { prompt, icp_id: icp.id, run_id: run.id, icp_name: icp.name } }];"
+      }
+    },
+    {
+      "id": "2f6a7b8c-9d0e-4f2a-3b4c-5d6e7f8a9b0c",
+      "name": "Call OpenCode Planner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "deepseek-v4-flash"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{ role: 'user', content: $json.prompt }] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.3
+            },
+            {
+              "name": "max_tokens",
+              "value": 2048
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2a7b8c9d-0e1f-4a3b-4c5d-6e7f8a9b0c1d",
+      "name": "Parse Planner Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const response = $json;\nlet content = '';\ntry {\n  content = response.choices[0].message.content;\n} catch (e) {\n  content = response.body || JSON.stringify(response);\n}\n\nlet plan = {};\ntry {\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  plan = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);\n} catch (e) {\n  plan = { strategy: 'default', sources: ['google_maps', 'indiamart', 'tradeindia', 'github', 'rss'], priority_focus: 'general', estimated_companies: 100 };\n}\n\nconst prevNode = $node['Build Planner Prompt'].json;\nreturn [{ json: { plan, icp_id: prevNode.icp_id, run_id: prevNode.run_id, icp_name: prevNode.icp_name } }];"
+      }
+    },
+    {
+      "id": "2b8c9d0e-1f2a-4b3c-5d6e-7f8a9b0c1d2e",
+      "name": "Generate 50 Search Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $json;\nconst icpName = item.icp_name || 'target';\nconst industry = (item.plan && item.plan.priority_focus) || 'technology';\nconst sources = (item.plan && item.plan.sources) || ['google_maps', 'indiamart', 'tradeindia', 'github', 'rss'];\n\nconst geoModifiers = ['', 'in India', 'in Mumbai', 'in Delhi', 'in Bangalore', 'in Pune', 'in Hyderabad', 'in Chennai', 'in Ahmedabad', 'in Kolkata', 'in Gurgaon', 'in Noida', 'in India 2025', 'near me', 'in Maharastra', 'in Gujarat', 'in Tamil Nadu', 'in Karnataka'];\nconst intentModifiers = ['best', 'top', 'leading', 'affordable', 'professional', 'reliable', 'trusted', 'expert', 'certified', '', '', ''];\nconst industrySynonyms = [industry, industry + ' services', industry + ' solutions', industry + ' company', industry + ' provider', industry + ' consultant', industry + ' agency', industry + ' firm', industry + ' expert', industry + ' specialist'];\n\nconst queries = [];\nfor (let i = 0; i < 8 && queries.length < 50; i++) {\n  const keyword = industrySynonyms[i % industrySynonyms.length];\n  for (let j = 0; j < geoModifiers.length && queries.length < 50; j++) {\n    const geo = geoModifiers[j];\n    for (let k = 0; k < intentModifiers.length && queries.length < 50; k++) {\n      const intent = intentModifiers[k];\n      const query = [intent, keyword, geo].filter(Boolean).join(' ');\n      if (query.trim().length > 3) {\n        queries.push({\n          query: query.trim(),\n          source_type: sources[queries.length % sources.length],\n          icp_id: item.icp_id,\n          run_id: item.run_id\n        });\n      }\n    }\n  }\n}\n\nconst sourceCycles = ['google_maps', 'indiamart', 'tradeindia', 'github', 'rss'];\nwhile (queries.length < 50) {\n  for (const src of sourceCycles) {\n    if (queries.length >= 50) break;\n    const modifiers = ['company', 'firm', 'business', 'vendor', 'supplier', 'provider', 'agency', 'service', 'solution', 'consultant'];\n    const m = modifiers[queries.length % modifiers.length];\n    queries.push({\n      query: `${industry} ${m} ${geoModifiers[queries.length % geoModifiers.length]}`.trim(),\n      source_type: src,\n      icp_id: item.icp_id,\n      run_id: item.run_id\n    });\n  }\n}\n\nreturn [{ json: { queries, icp_id: item.icp_id, run_id: item.run_id, count: queries.length } }];"
+      }
+    },
+    {
+      "id": "2c9d0e1f-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
+      "name": "Insert Search Queries",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 550],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/search_queries",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "source_type",
+              "value": "={{ $json.source_type }}"
+            },
+            {
+              "name": "icp_id",
+              "value": "={{ $json.icp_id }}"
+            },
+            {
+              "name": "run_id",
+              "value": "={{ $json.run_id }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2d0e1f2a-3b4c-5d6e-7f8a-9b0c1d2e3f4a",
+      "name": "Insert Planner Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 800],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/planner_decisions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "run_id",
+              "value": "={{ $json.run_id }}"
+            },
+            {
+              "name": "icp_id",
+              "value": "={{ $json.icp_id }}"
+            },
+            {
+              "name": "plan_data",
+              "value": "={{ JSON.stringify($json.plan) }}"
+            },
+            {
+              "name": "status",
+              "value": "approved"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2e1f2a3b-4c5d-6e7f-8a9b-0c1d2e3f4a5b",
+      "name": "Update Run Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 1050],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/planner_runs?id=eq.' + encodeURIComponent($json.run_id) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "executing"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15min (Mon)": {
+      "main": [
+        [
+          { "node": "Load Pending Planner Run", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load Pending Planner Run": {
+      "main": [
+        [
+          { "node": "Run Found?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Run Found?": {
+      "main": [
+        [
+          { "node": "Load ICP Profile", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Load ICP Profile": {
+      "main": [
+        [
+          { "node": "Build Planner Prompt", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Planner Prompt": {
+      "main": [
+        [
+          { "node": "Call OpenCode Planner", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Call OpenCode Planner": {
+      "main": [
+        [
+          { "node": "Parse Planner Decision", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Planner Decision": {
+      "main": [
+        [
+          { "node": "Generate 50 Search Queries", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Generate 50 Search Queries": {
+      "main": [
+        [
+          { "node": "Insert Search Queries", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Search Queries": {
+      "main": [
+        [
+          { "node": "Insert Planner Decision", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Planner Decision": {
+      "main": [
+        [
+          { "node": "Update Run Status", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "active": false
+}

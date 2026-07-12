@@ -1,0 +1,249 @@
+{
+  "name": "Jasfo v2 - Learner",
+  "nodes": [
+    {
+      "id": "5a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Monday 8AM Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Load Source Statistics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/source_statistics?select=*&order=calculated_at.desc&limit=25",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5c3d4e5f-6a7b-4c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Stats Available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id != null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "5d4e5f6a-7b8c-4d0e-1f2a-3b4c5d6e7f8a",
+      "name": "Aggregate Stats Per Source",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const items = $input.all();\nconst sources = {};\n\nfor (const item of items) {\n  const src = item.json.source_type || 'unknown';\n  if (!sources[src]) {\n    sources[src] = {\n      source_type: src,\n      total_queries: 0,\n      total_companies: 0,\n      accepted_companies: 0,\n      total_runs: 0,\n      last_run: null\n    };\n  }\n  const s = sources[src];\n  s.total_queries += (item.json.queries_executed || 0);\n  s.total_companies += (item.json.companies_discovered || 0);\n  s.accepted_companies += (item.json.companies_accepted || 0);\n  s.total_runs++;\n  const d = item.json.calculated_at || item.json.created_at;\n  if (d && (!s.last_run || d > s.last_run)) s.last_run = d;\n}\n\nconst sourceArray = Object.values(sources);\n\nfor (const s of sourceArray) {\n  s.quality_rate = s.total_companies > 0 ? Math.round((s.accepted_companies / s.total_companies) * 100) : 0;\n  s.efficiency = s.total_queries > 0 ? Math.round(s.total_companies / s.total_queries) : 0;\n  s.priority_score = Math.round((s.quality_rate * 0.7 + Math.min(100, s.efficiency * 20) * 0.3));\n}\n\nsourceArray.sort((a, b) => b.priority_score - a.priority_score);\n\nreturn [{ json: { sources: sourceArray, count: sourceArray.length, best_source: sourceArray[0] || null, worst_source: sourceArray[sourceArray.length - 1] || null } }];"
+      }
+    },
+    {
+      "id": "5e5f6a7b-8c9d-4e1f-2a3b-4c5d6e7f8a9b",
+      "name": "Update Source Priorities",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/discovery_sources?source_type=eq.' + encodeURIComponent($json.source_type) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "priority",
+              "value": "={{ $json.priority_score }}"
+            },
+            {
+              "name": "quality_rate",
+              "value": "={{ $json.quality_rate }}"
+            },
+            {
+              "name": "efficiency",
+              "value": "={{ $json.efficiency }}"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5f6a7b8c-9d0e-4f2a-3b4c-5d6e7f8a9b0c",
+      "name": "Generate Performance Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $json;\nconst sources = item.sources || [];\nconst best = sources[0] || null;\nconst worst = sources[sources.length - 1] || null;\n\nlet text = '<b>📊 Source Performance Report</b>\\n\\n';\ntext += '<b>Top Source:</b> ' + (best ? best.source_type + ' (Score: ' + best.priority_score + ', Quality: ' + best.quality_rate + '%)' : 'N/A') + '\\n';\ntext += '<b>Lowest Source:</b> ' + (worst ? worst.source_type + ' (Score: ' + worst.priority_score + ', Quality: ' + worst.quality_rate + '%)' : 'N/A') + '\\n\\n';\ntext += '<b>All Sources:</b>\\n';\n\nfor (const s of sources) {\n  text += '• ' + s.source_type + ': Priority=' + s.priority_score + ', Quality=' + s.quality_rate + '%, Companies=' + s.total_companies + '\\n';\n}\n\ntext += '\\n<i>Next cycle will prioritize high-scoring sources.</i>';\n\nreturn [{ json: { report_text: text, sources_count: sources.length, generated_at: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "5a7b8c9d-0e1f-4a3b-4c5d-6e7f8a9b0c1d",
+      "name": "Send Performance Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1450, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8688503635:AAH4obxx3lGXYhoke1hR8mFJvoTvflVRrnE/sendMessage",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "-5497421027"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.report_text }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "HTML"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Monday 8AM Schedule": {
+      "main": [
+        [
+          { "node": "Load Source Statistics", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load Source Statistics": {
+      "main": [
+        [
+          { "node": "Stats Available?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Stats Available?": {
+      "main": [
+        [
+          { "node": "Aggregate Stats Per Source", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Aggregate Stats Per Source": {
+      "main": [
+        [
+          { "node": "Update Source Priorities", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Update Source Priorities": {
+      "main": [
+        [
+          { "node": "Generate Performance Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Generate Performance Report": {
+      "main": [
+        [
+          { "node": "Send Performance Telegram", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "active": false
+}

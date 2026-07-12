@@ -1,0 +1,339 @@
+{
+  "name": "Jasfo v2 - Source Executor",
+  "nodes": [
+    {
+      "id": "3a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Every 15min (Mon)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Load Pending Queries",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/search_queries?results_count=is.null&select=*&limit=5",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3c3d4e5f-6a7b-4c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Queries Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id != null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "3d4e5f6a-7b8c-4d0e-1f2a-3b4c5d6e7f8a",
+      "name": "Batch per Query",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "3e5f6a7b-8c9d-4e1f-2a3b-4c5d6e7f8a9b",
+      "name": "Route Search Method",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $json;\nconst sourceType = item.source_type || 'google_maps';\nconst query = item.query || '';\n\nlet method = 'POST';\nlet url = '';\nlet headers = {};\nlet body = {};\nlet responseFormat = 'json';\n\nswitch (sourceType) {\n  case 'google_maps':\n  case 'indiamart':\n  case 'tradeindia':\n    url = 'https://api.firecrawl.dev/v1/search';\n    headers = { 'Authorization': 'Bearer fc-03ee582d75c647c59555df35374d8fa2', 'Content-Type': 'application/json' };\n    body = { query: query + ' site:' + (sourceType === 'google_maps' ? 'google.com/maps' : sourceType === 'indiamart' ? 'indiamart.com' : 'tradeindia.com'), maxResults: 10, scrapeOptions: { formats: ['markdown'] } };\n    break;\n  case 'github':\n    url = 'https://api.github.com/search/users?q=' + encodeURIComponent(query) + '+type:org&per_page=10';\n    method = 'GET';\n    headers = { 'Accept': 'application/vnd.github.v3+json' };\n    break;\n  case 'rss':\n    url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=en-IN&gl=IN';\n    method = 'GET';\n    responseFormat = 'string';\n    break;\n  default:\n    url = 'https://api.firecrawl.dev/v1/search';\n    headers = { 'Authorization': 'Bearer fc-03ee582d75c647c59555df35374d8fa2', 'Content-Type': 'application/json' };\n    body = { query: query, maxResults: 10, scrapeOptions: { formats: ['markdown'] } };\n}\n\nreturn [{ json: { query_id: item.id, query, sourceType, method, url, headers, body, responseFormat, icp_id: item.icp_id, run_id: item.run_id } }];"
+      }
+    },
+    {
+      "id": "3f6a7b8c-9d0e-4f2a-3b4c-5d6e7f8a9b0c",
+      "name": "Execute Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 300],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers['Authorization'] || $json.headers.Authorization || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "={{ $json.headers['Content-Type'] || 'application/json' }}"
+            },
+            {
+              "name": "Accept",
+              "value": "={{ $json.headers['Accept'] || 'application/json' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.body.query }}"
+            },
+            {
+              "name": "maxResults",
+              "value": "={{ $json.body.maxResults }}"
+            },
+            {
+              "name": "scrapeOptions",
+              "value": "={{ $json.body.scrapeOptions }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3a7b8c9d-0e1f-4a3b-4c5d-6e7f8a9b0c1d",
+      "name": "Parse Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const route = $node['Route Search Method'].json;\nconst response = $json;\nconst query = route.query;\nconst sourceType = route.sourceType;\nconst queryId = route.query_id;\n\nlet companies = [];\n\nif (sourceType === 'rss') {\n  const body = response.body || '';\n  const titleMatches = body.match(/<title>([^<]+)<\\/title>/g) || [];\n  for (let i = 1; i < titleMatches.length && companies.length < 20; i++) {\n    const title = titleMatches[i].replace('<title>', '').replace('</title>', '').trim();\n    if (title && title.length > 3) {\n      companies.push({ name: title, source: 'rss', domain: '', found_at: new Date().toISOString() });\n    }\n  }\n} else if (sourceType === 'github') {\n  const items = response.items || [];\n  for (const item of items) {\n    companies.push({ name: item.login || '', domain: (item.blog || '').replace('https://', '').replace('http://', '').split('/')[0], source: 'github', github_url: item.html_url, found_at: new Date().toISOString() });\n  }\n} else {\n  const data = response.data || response.results || [];\n  const dataList = Array.isArray(data) ? data : (data.data || []);\n  for (const item of dataList) {\n    const name = item.title || item.name || item.metadata?.title || '';\n    const url = item.url || item.link || '';\n    const desc = item.description || item.metadata?.description || '';\n    const domain = url ? url.replace('https://', '').replace('http://', '').split('/')[0].replace('www.', '') : '';\n    if (name && name.length > 2) {\n      companies.push({ name, domain, url, description: desc, source: sourceType, found_at: new Date().toISOString() });\n    }\n  }\n}\n\nreturn [{ json: { companies, query, sourceType, queryId, icp_id: route.icp_id, run_id: route.run_id, count: companies.length } }];"
+      }
+    },
+    {
+      "id": "3b8c9d0e-1f2a-4b3c-5d6e-7f8a9b0c1d2e",
+      "name": "Insert Raw Companies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/raw_companies",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "company_name",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "company_domain",
+              "value": "={{ $json.domain }}"
+            },
+            {
+              "name": "source_type",
+              "value": "={{ $json.source }}"
+            },
+            {
+              "name": "source_query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "found_at",
+              "value": "={{ $json.found_at }}"
+            },
+            {
+              "name": "raw_data",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3c9d0e1f-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
+      "name": "Update Query Results Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 550],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/search_queries?id=eq.' + encodeURIComponent($json.queryId) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "results_count",
+              "value": "={{ $json.count }}"
+            },
+            {
+              "name": "executed_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15min (Mon)": {
+      "main": [
+        [
+          { "node": "Load Pending Queries", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load Pending Queries": {
+      "main": [
+        [
+          { "node": "Queries Found?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Queries Found?": {
+      "main": [
+        [
+          { "node": "Batch per Query", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Batch per Query": {
+      "main": [
+        [
+          { "node": "Route Search Method", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Route Search Method": {
+      "main": [
+        [
+          { "node": "Execute Search", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Execute Search": {
+      "main": [
+        [
+          { "node": "Parse Search Results", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Search Results": {
+      "main": [
+        [
+          { "node": "Insert Raw Companies", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Raw Companies": {
+      "main": [
+        [
+          { "node": "Update Query Results Count", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "active": false
+}

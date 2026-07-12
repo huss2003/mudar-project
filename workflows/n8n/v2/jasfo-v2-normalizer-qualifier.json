@@ -1,0 +1,611 @@
+{
+  "name": "Jasfo v2 - Normalizer & Qualifier",
+  "nodes": [
+    {
+      "id": "4a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Every 30min (Mon-Tue)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * 1-2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4b2c3d4e-5f6a-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Load Unprocessed Raw Companies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/raw_companies?or=(normalized_at.is.null,normalized_at.is.NaN)&select=*&limit=20&order=found_at.asc",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4c3d4e5f-6a7b-4c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Normalize Company Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $json;\n\nconst rawName = (item.company_name || item.name || '').trim();\nconst rawDomain = (item.company_domain || item.domain || item.url || '').trim();\n\n// Normalize company name: remove extra spaces, legal suffixes\nlet name = rawName\n  .replace(/\\s+/g, ' ')\n  .replace(/\b(Private|Limited|Ltd|LLC|Inc|Corp|Corporation|Pvt|GmbH|Pty|Co)\b\\.?/gi, '')\n  .replace(/[,.]+$/, '')\n  .trim();\n\n// Extract domain from URL if needed\nlet domain = rawDomain;\nif (domain.includes('://')) domain = domain.split('/')[2];\nif (domain.startsWith('www.')) domain = domain.substring(4);\ndomain = domain.split('/')[0].split('?')[0].toLowerCase().trim();\n\nreturn [{ json: { ...item, normalized_name: name || rawName, company_domain: domain, raw_name: rawName, raw_domain: rawDomain } }];"
+      }
+    },
+    {
+      "id": "4d4e5f6a-7b8c-4d0e-1f2a-3b4c5d6e7f8a",
+      "name": "Check Rejectable Patterns",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $json;\nconst name = item.normalized_name || '';\nconst domain = item.company_domain || '';\n\nconst rejectPatterns = [\n  /^[a-z]{1,2}$/i, /^test/i, /^sample/i, /^example/i,\n  /\\b(gmail|yahoo|hotmail|outlook|rediff)\\b/i,\n  /\\b(blogger|wordpress|blogspot|wix|weebly)\\b/i,\n  /\\b(wikipedia|facebook|twitter|linkedin|instagram|youtube)\\b/i,\n  /^\\d+$/, /^[^a-zA-Z]+$/, /^[a-z]$/i,\n  /\\b(justdial|sulekha|asklaila|yellowpages|yell|biz)\\b/i\n];\n\nlet is_valid = true;\nlet rejection_reason = '';\n\nif (!name || name.length < 3) {\n  is_valid = false;\n  rejection_reason = 'name_too_short';\n}\n\nif (is_valid) {\n  for (const pattern of rejectPatterns) {\n    if (pattern.test(name) || pattern.test(domain)) {\n      is_valid = false;\n      rejection_reason = 'rejectable_pattern: ' + pattern.source;\n      break;\n    }\n  }\n}\n\nreturn [{ json: { ...item, is_valid, rejection_reason } }];"
+      }
+    },
+    {
+      "id": "4e5f6a7b-8c9d-4e1f-2a3b-4c5d6e7f8a9b",
+      "name": "Passes Validation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "4f6a7b8c-9d0e-4f2a-3b4c-5d6e7f8a9b0c",
+      "name": "Check Existing Duplicates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 200],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/normalized_companies?or=(company_domain.eq.' + encodeURIComponent($json.company_domain) + ',company_name.ilike.%25' + encodeURIComponent(($json.normalized_name || '').substring(0, 10)) + '%25)&select=id,company_name,company_domain,score' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "responseFormat": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "4a7b8c9d-0e1f-4a3b-4c5d-6e7f8a9b0c1d",
+      "name": "Calculate Duplicate Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 200],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $node['Passes Validation?'].json;\nlet rawBody = '';\ntry {\n  rawBody = $json.body || '[]';\n} catch(e) {\n  rawBody = '[]';\n}\n\nlet duplicates = [];\ntry {\n  duplicates = JSON.parse(rawBody);\n  if (!Array.isArray(duplicates)) duplicates = [duplicates];\n} catch(e) {\n  duplicates = [];\n}\n\nlet is_duplicate = false;\nlet duplicate_score = 0;\nconst newDomain = item.company_domain || '';\nconst newName = (item.normalized_name || '').toLowerCase();\n\nfor (const dup of duplicates) {\n  let score = 0;\n  if (dup.company_domain === newDomain && newDomain.length > 3) score = 100;\n  if (dup.company_name && newName) {\n    const longer = dup.company_name.length > newName.length ? dup.company_name.toLowerCase() : newName;\n    const shorter = dup.company_name.length > newName.length ? newName : dup.company_name.toLowerCase();\n    let matches = 0;\n    for (let i = 0; i < shorter.length; i++) {\n      if (longer.includes(shorter.substring(i, i + 3))) matches++;\n    }\n    const nameScore = Math.min(100, Math.round((matches * 3 / Math.max(1, shorter.length)) * 100));\n    score = Math.max(score, nameScore);\n  }\n  if (score > duplicate_score) {\n    duplicate_score = score;\n    is_duplicate = score > 80;\n  }\n}\n\nreturn [{ json: { ...item, is_duplicate, duplicate_score, duplicates, duplicate_count: duplicates.length } }];"
+      }
+    },
+    {
+      "id": "4b8c9d0e-1f2a-4b3c-5d6e-7f8a9b0c1d2e",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1650, 200],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "4c9d0e1f-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
+      "name": "Insert Duplicate Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1850, 50],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/duplicate_matches",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "original_company_domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "original_company_name",
+              "value": "={{ $json.normalized_name }}"
+            },
+            {
+              "name": "duplicate_score",
+              "value": "={{ $json.duplicate_score }}"
+            },
+            {
+              "name": "matched_count",
+              "value": "={{ $json.duplicate_count }}"
+            },
+            {
+              "name": "found_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4d0e1f2a-3b4c-5d6e-7f8a-9b0c1d2e3f4a",
+      "name": "Insert Normalized Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1850, 350],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/normalized_companies",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "company_name",
+              "value": "={{ $json.normalized_name }}"
+            },
+            {
+              "name": "company_domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "source_type",
+              "value": "={{ $json.source_type }}"
+            },
+            {
+              "name": "icp_id",
+              "value": "={{ $json.icp_id }}"
+            },
+            {
+              "name": "raw_data",
+              "value": "={{ JSON.stringify($json) }}"
+            },
+            {
+              "name": "normalized_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4e1f2a3b-4c5d-6e7f-8a9b-0c1d2e3f4a5b",
+      "name": "Calculate Initial Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 350],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $json;\nconst name = (item.company_name || item.normalized_name || '');\nconst domain = (item.company_domain || '');\n\n// Rudimentary initial score based on available signals\nlet score = 30;\nif (domain && domain.includes('.') && domain.length > 6) score += 20;\nif (name && name.length > 5) score += 10;\nif (name && !/\\d{4,}/.test(name)) score += 5;\nif (item.description && item.description.length > 20) score += 10;\nif (item.source_type === 'google_maps') score += 5;\nif (item.source_type === 'indiamart' || item.source_type === 'tradeindia') score += 5;\nif (item.url && item.url.length > 10) score += 10;\nif (item.social_links || item.linkedin) score += 5;\n\nconst finalScore = Math.min(100, Math.max(0, score));\n\nreturn [{ json: { ...item, initial_score: finalScore, scored_at: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "4f2a3b4c-5d6e-6e7f-8a9b-0c1d2e3f4a5b",
+      "name": "Insert Initial Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2250, 350],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/initial_scores",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "company_domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $json.normalized_name }}"
+            },
+            {
+              "name": "initial_score",
+              "value": "={{ $json.initial_score }}"
+            },
+            {
+              "name": "scored_at",
+              "value": "={{ $json.scored_at }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4a3b4c5d-6e7f-7f8a-9b0c-1d2e3f4a5b6c",
+      "name": "Score >= 60?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2450, 350],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.initial_score }}",
+              "rightValue": 60,
+              "operator": {
+                "type": "number",
+                "operation": "largerEqual"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "4b4c5d6e-7f8a-8f9b-0c1d-2e3f4a5b6c7d",
+      "name": "Insert to Company Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2650, 250],
+      "parameters": {
+        "method": "POST",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/company_queue",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "company_name",
+              "value": "={{ $json.normalized_name }}"
+            },
+            {
+              "name": "company_domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "initial_score",
+              "value": "={{ $json.initial_score }}"
+            },
+            {
+              "name": "status",
+              "value": "pending"
+            },
+            {
+              "name": "scenario_step",
+              "value": "discovery"
+            },
+            {
+              "name": "created_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4c5d6e7f-8a9b-9f0c-1d2e-3f4a5b6c7d8e",
+      "name": "Mark Raw Company Processed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2650, 500],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/raw_companies?id=eq.' + encodeURIComponent($json.id) }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "normalized_at",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "name": "status",
+              "value": "processed"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 30min (Mon-Tue)": {
+      "main": [
+        [
+          { "node": "Load Unprocessed Raw Companies", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Load Unprocessed Raw Companies": {
+      "main": [
+        [
+          { "node": "Normalize Company Data", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Normalize Company Data": {
+      "main": [
+        [
+          { "node": "Check Rejectable Patterns", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check Rejectable Patterns": {
+      "main": [
+        [
+          { "node": "Passes Validation?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Passes Validation?": {
+      "main": [
+        [
+          { "node": "Check Existing Duplicates", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Check Existing Duplicates": {
+      "main": [
+        [
+          { "node": "Calculate Duplicate Score", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Calculate Duplicate Score": {
+      "main": [
+        [
+          { "node": "Is Duplicate?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          { "node": "Insert Duplicate Match", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Insert Normalized Company", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Normalized Company": {
+      "main": [
+        [
+          { "node": "Calculate Initial Score", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Calculate Initial Score": {
+      "main": [
+        [
+          { "node": "Insert Initial Score", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Initial Score": {
+      "main": [
+        [
+          { "node": "Score >= 60?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score >= 60?": {
+      "main": [
+        [
+          { "node": "Insert to Company Queue", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Mark Raw Company Processed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert to Company Queue": {
+      "main": [
+        [
+          { "node": "Mark Raw Company Processed", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "active": false
+}
