@@ -2,39 +2,19 @@
   "name": "Jasfo Discovery Processor",
   "nodes": [
     {
-      "id": "schedule-trigger",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000001",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.1,
+      "typeVersion": 1.2,
       "position": [250, 300],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "*/30 * * * 1"
-            }
-          ]
-        }
-      }
+      "parameters": { "rule": { "interval": [{ "field": "cron", "expression": "*/30 * * * 1" }] } }
     },
     {
-      "id": "generate-today",
-      "name": "Generate Today Start",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [450, 300],
-      "parameters": {
-        "language": "javaScript",
-        "code": "const now = new Date();\nnow.setUTCHours(0, 0, 0, 0);\nreturn [{ today_start: now.toISOString(), ts: new Date().toISOString() }];"
-      }
-    },
-    {
-      "id": "load-pending",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000002",
       "name": "Load Pending Items",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [650, 300],
+      "position": [450, 300],
       "parameters": {
         "method": "GET",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?status=eq.pending&scenario_step=eq.discovery&select=*&order=created_at.asc&limit=5",
@@ -42,571 +22,188 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            }
+            { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
-        }
-      }
-    },
-    {
-      "id": "items-found",
-      "name": "Items Found?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [850, 300],
-      "parameters": {
-        "conditions": {
-          "string": [
-            {
-              "value1": "={{ $json.company_domain }}",
-              "operation": "notEmpty"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "split-batches",
-      "name": "Split In Batches",
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [1050, 300],
-      "parameters": {
-        "batchSize": 1,
+        },
         "options": {}
       }
     },
     {
-      "id": "extract-company",
-      "name": "Extract Company Info",
-      "type": "n8n-nodes-base.code",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000003",
+      "name": "Items Found?",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1250, 300],
+      "position": [650, 300],
       "parameters": {
-        "language": "javaScript",
-        "code": "const now = new Date();\nnow.setUTCHours(0, 0, 0, 0);\nconst item = $json;\nreturn [{\n  companyDomain: item.company_domain,\n  companyName: item.company_name || item.company_domain,\n  runId: item.run_id,\n  queueId: item.id,\n  todayStart: now.toISOString()\n}];"
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json.length }}", "rightValue": 0, "operator": { "type": "number", "operation": "larger" } }],
+          "combinator": "and"
+        }
       }
     },
     {
-      "id": "check-cache",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000004",
+      "name": "Batch Processor",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "parameters": { "batchSize": 1, "options": {} }
+    },
+    {
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000005",
       "name": "Check Cache",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1450, 300],
+      "position": [1050, 300],
       "parameters": {
         "method": "GET",
-        "url": "= \"https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scrape_cache?company_domain=eq.\" + encodeURIComponent($json.companyDomain) + \"&source_type=eq.company_profile&expires_at=gt.\" + $json.todayStart + \"&select=*\"",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scrape_cache?company_domain=eq.' + encodeURIComponent($json.company_domain) + '&source_type=eq.company_profile&select=*' }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            }
+            { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {
-      "id": "cache-hit",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000006",
       "name": "Cache Hit?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [1650, 300],
+      "typeVersion": 2,
+      "position": [1250, 300],
       "parameters": {
         "conditions": {
-          "string": [
-            {
-              "value1": "={{ $json.id }}",
-              "operation": "notEmpty"
-            }
-          ]
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{ "id": "c2", "leftValue": "={{ Array.isArray($json) && $json.length > 0 }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equal" } }],
+          "combinator": "and"
         }
       }
     },
     {
-      "id": "firecrawl-crawl",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000007",
       "name": "Firecrawl Crawl",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1850, 550],
+      "position": [1450, 100],
+      "continueOnFail": true,
       "parameters": {
         "method": "POST",
         "url": "https://api.firecrawl.dev/v1/crawl",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer fc-03ee582d75c647c59555df35374d8fa2"
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "Bearer fc-03ee582d75c647c59555df35374d8fa2" }, { "name": "Content-Type", "value": "application/json" }] },
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "url",
-              "value": "= \"https://\" + $json.companyDomain"
-            },
-            {
-              "name": "maxDepth",
-              "value": 2
-            },
-            {
-              "name": "maxPages",
-              "value": 15
-            },
-            {
-              "name": "scrapeOptions",
-              "value": "={ \"formats\": [\"markdown\"] }"
-            }
-          ]
-        },
-        "continueOnFail": true
+        "bodyContentType": "json",
+        "bodyParameters": { "parameters": [{ "name": "url", "value": "={{ 'https://' + $json.company_domain }}" }, { "name": "maxDepth", "value": 2 }, { "name": "maxPages", "value": 10 }, { "name": "scrapeOptions", "value": "={ \"formats\": [\"markdown\"] }" }] },
+        "options": { "timeout": 60000 }
       }
     },
     {
-      "id": "extract-crawl-id",
-      "name": "Extract Crawl ID",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2050, 550],
-      "parameters": {
-        "language": "javaScript",
-        "code": "const item = $json;\nreturn [{\n  crawlId: item.id,\n  companyDomain: $node['Extract Company Info'].json.companyDomain,\n  companyName: $node['Extract Company Info'].json.companyName,\n  runId: $node['Extract Company Info'].json.runId\n}];"
-      }
-    },
-    {
-      "id": "poll-crawl",
-      "name": "Poll Crawl Status",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2250, 550],
-      "parameters": {
-        "language": "javaScript",
-        "code": "const item = $json;\nconst crawlId = item.crawlId;\nconst maxAttempts = 30;\nconst intervalMs = 5000;\nconst sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));\n\nif (!crawlId) {\n  return [{\n    crawlStatus: 'skipped',\n    pages: [],\n    companyDomain: item.companyDomain,\n    companyName: item.companyName,\n    runId: item.runId\n  }];\n}\n\nfor (let attempt = 0; attempt < maxAttempts; attempt++) {\n  try {\n    const data = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.firecrawl.dev/v1/crawl/' + crawlId,\n      headers: {\n        'Authorization': 'Bearer fc-03ee582d75c647c59555df35374d8fa2'\n      }\n    });\n\n    if (data.status === 'completed') {\n      return [{\n        crawlStatus: 'completed',\n        pages: data.data || [],\n        totalPages: (data.data || []).length,\n        companyDomain: item.companyDomain,\n        companyName: item.companyName,\n        runId: item.runId\n      }];\n    }\n\n    if (data.status === 'failed' || data.status === 'error') {\n      return [{\n        crawlStatus: 'failed',\n        pages: [],\n        error: data.error || 'Crawl failed',\n        companyDomain: item.companyDomain,\n        companyName: item.companyName,\n        runId: item.runId\n      }];\n    }\n\n    await sleep(intervalMs);\n  } catch (err) {\n    if (attempt === maxAttempts - 1) {\n      return [{\n        crawlStatus: 'error',\n        pages: [],\n        error: err.message,\n        companyDomain: item.companyDomain,\n        companyName: item.companyName,\n        runId: item.runId\n      }];\n    }\n    await sleep(intervalMs);\n  }\n}\n\nreturn [{\n  crawlStatus: 'timeout',\n  pages: [],\n  companyDomain: item.companyDomain,\n  companyName: item.companyName,\n  runId: item.runId\n}];"
-      }
-    },
-    {
-      "id": "firecrawl-about",
-      "name": "Firecrawl Scrape About",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000008",
+      "name": "Firecrawl Scrape",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2450, 550],
+      "position": [1450, 300],
+      "continueOnFail": true,
       "parameters": {
         "method": "POST",
         "url": "https://api.firecrawl.dev/v1/scrape",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer fc-03ee582d75c647c59555df35374d8fa2"
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "Bearer fc-03ee582d75c647c59555df35374d8fa2" }, { "name": "Content-Type", "value": "application/json" }] },
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "url",
-              "value": "= \"https://\" + $json.companyDomain + \"/about\""
-            },
-            {
-              "name": "formats",
-              "value": "= [\"markdown\"]"
-            }
-          ]
-        },
-        "continueOnFail": true
+        "bodyContentType": "json",
+        "bodyParameters": { "parameters": [{ "name": "url", "value": "={{ 'https://' + $json.company_domain + '/about' }}" }, { "name": "formats", "value": "=[\"markdown\"]" }] },
+        "options": { "timeout": 30000 }
       }
     },
     {
-      "id": "firecrawl-search",
-      "name": "Firecrawl Search Fallback",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2650, 550],
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.firecrawl.dev/v1/search",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer fc-03ee582d75c647c59555df35374d8fa2"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "query",
-              "value": "= $json.companyName + \" company\""
-            },
-            {
-              "name": "scrapeOptions",
-              "value": "={ \"formats\": [\"markdown\"] }"
-            }
-          ]
-        },
-        "continueOnFail": true
-      }
-    },
-    {
-      "id": "merge-data",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000009",
       "name": "Merge Scraped Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2850, 550],
+      "position": [1650, 300],
       "parameters": {
         "language": "javaScript",
-        "code": "var pollResult = $node['Poll Crawl Status'].json;\nvar aboutResult = $node['Firecrawl Scrape About'].json;\nvar searchResult = $json;\nvar companyInfo = $node['Extract Company Info'].json;\n\nvar expDate = new Date();\nexpDate.setDate(expDate.getDate() + 7);\n\nvar merged = {\n  crawlStatus: pollResult.crawlStatus,\n  crawlPages: pollResult.pages || [],\n  totalCrawled: pollResult.totalPages || 0,\n  aboutData: aboutResult.data || aboutResult,\n  searchData: searchResult.data || searchResult,\n  companyDomain: companyInfo.companyDomain,\n  companyName: companyInfo.companyName,\n  fetchedAt: new Date().toISOString()\n};\n\nreturn [{\n  mergedData: merged,\n  companyDomain: companyInfo.companyDomain,\n  companyName: companyInfo.companyName,\n  runId: companyInfo.runId,\n  cacheKey: companyInfo.companyDomain + '_profile',\n  expiresAt: expDate.toISOString()\n}];"
+        "code": "const item = $input.first().json;\nconst crawlResult = $node['Firecrawl Crawl'].json || {};\nconst scrapeResult = $node['Firecrawl Scrape'].json || {};\nconst cacheResult = $node['Check Cache'].json;\nconst cacheHit = Array.isArray(cacheResult) && cacheResult.length > 0;\n\nreturn [{\n  json: {\n    company_domain: item.company_domain,\n    company_name: item.company_name,\n    run_id: item.run_id,\n    cached: cacheHit,\n    crawl_data: crawlResult.data || crawlResult,\n    scrape_data: scrapeResult.data || scrapeResult,\n    merged_at: new Date().toISOString()\n  }\n}];"
       }
     },
     {
-      "id": "insert-cache",
-      "name": "Insert Scrape Cache",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000010",
+      "name": "Insert Cache",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3050, 550],
+      "position": [1850, 300],
       "parameters": {
         "method": "POST",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scrape_cache",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=minimal"
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [
+          { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "Prefer", "value": "return=minimal" }
+        ] },
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "cache_key",
-              "value": "={{ $json.cacheKey }}"
-            },
-            {
-              "name": "company_domain",
-              "value": "={{ $json.companyDomain }}"
-            },
-            {
-              "name": "source_type",
-              "value": "company_profile"
-            },
-            {
-              "name": "response_data",
-              "value": "={{ $json.mergedData }}"
-            },
-            {
-              "name": "expires_at",
-              "value": "={{ $json.expiresAt }}"
-            }
-          ]
-        }
+        "bodyContentType": "json",
+        "bodyParameters": { "parameters": [
+          { "name": "cache_key", "value": "={{ $json.company_domain + '_profile' }}" },
+          { "name": "company_domain", "value": "={{ $json.company_domain }}" },
+          { "name": "source_type", "value": "company_profile" },
+          { "name": "response_data", "value": "={{ JSON.stringify($json) }}" },
+          { "name": "expires_at", "value": "={{ new Date(Date.now() + 7*24*60*60*1000).toISOString() }}" }
+        ] }
       }
     },
     {
-      "id": "prepare-update",
-      "name": "Prepare Update Data",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [3250, 100],
-      "parameters": {
-        "language": "javaScript",
-        "code": "var item = $json;\nvar companyDomain = item.companyDomain || $node['Extract Company Info'].json.companyDomain;\nvar runId = item.runId || $node['Extract Company Info'].json.runId;\nvar companyName = item.companyName || $node['Extract Company Info'].json.companyName;\nvar scrapeSummary = {};\n\nif (item.response_data) {\n  scrapeSummary = typeof item.response_data === 'string'\n    ? JSON.parse(item.response_data)\n    : item.response_data;\n} else if (item.mergedData) {\n  scrapeSummary = item.mergedData;\n} else {\n  scrapeSummary = {\n    crawlStatus: $node['Poll Crawl Status'].json.crawlStatus || 'no_data',\n    aboutData: $node['Firecrawl Scrape About'].json.data || null,\n    searchData: $json.data || null\n  };\n}\n\nreturn [{\n  runId: runId,\n  companyDomain: companyDomain,\n  companyName: companyName,\n  status: 'completed',\n  nextStep: 'ai_ready',\n  scrapeSummary: scrapeSummary,\n  updatedAt: new Date().toISOString()\n}];"
-      }
-    },
-    {
-      "id": "update-queue",
-      "name": "Update Scenario Queue",
+      "id": "a1b2c3d4-e5f6-4a90-abcd-000000000011",
+      "name": "Update Queue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3450, 300],
+      "position": [2050, 300],
       "parameters": {
         "method": "PATCH",
-        "url": "= \"https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.\" + encodeURIComponent($json.runId) + \"&company_domain=eq.\" + encodeURIComponent($json.companyDomain)",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + encodeURIComponent($json.run_id) + '&company_name=eq.' + encodeURIComponent($json.company_name) }}",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            }
-          ]
-        },
+        "headerParameters": { "parameters": [
+          { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk" },
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "Prefer", "value": "return=representation" }
+        ] },
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "status",
-              "value": "={{ $json.status }}"
-            },
-            {
-              "name": "next_step",
-              "value": "={{ $json.nextStep }}"
-            },
-            {
-              "name": "output_data",
-              "value": "={{ $json.scrapeSummary }}"
-            },
-            {
-              "name": "updated_at",
-              "value": "={{ $json.updatedAt }}"
-            }
-          ]
-        }
+        "bodyContentType": "json",
+        "bodyParameters": { "parameters": [
+          { "name": "status", "value": "completed" },
+          { "name": "next_step", "value": "ai_ready" },
+          { "name": "updated_at", "value": "={{ new Date().toISOString() }}" }
+        ] }
       }
     }
   ],
   "connections": {
-    "Schedule Trigger": {
-      "main": [
-        [
-          {
-            "node": "Generate Today Start",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Today Start": {
-      "main": [
-        [
-          {
-            "node": "Load Pending Items",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Load Pending Items": {
-      "main": [
-        [
-          {
-            "node": "Items Found?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Items Found?": {
-      "main": [
-        [
-          {
-            "node": "Split In Batches",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "Split In Batches": {
-      "main": [
-        [
-          {
-            "node": "Extract Company Info",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract Company Info": {
-      "main": [
-        [
-          {
-            "node": "Check Cache",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Cache": {
-      "main": [
-        [
-          {
-            "node": "Cache Hit?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cache Hit?": {
-      "main": [
-        [
-          {
-            "node": "Prepare Update Data",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Firecrawl Crawl",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Firecrawl Crawl": {
-      "main": [
-        [
-          {
-            "node": "Extract Crawl ID",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract Crawl ID": {
-      "main": [
-        [
-          {
-            "node": "Poll Crawl Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Poll Crawl Status": {
-      "main": [
-        [
-          {
-            "node": "Firecrawl Scrape About",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Firecrawl Scrape About": {
-      "main": [
-        [
-          {
-            "node": "Firecrawl Search Fallback",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Firecrawl Search Fallback": {
-      "main": [
-        [
-          {
-            "node": "Merge Scraped Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge Scraped Data": {
-      "main": [
-        [
-          {
-            "node": "Insert Scrape Cache",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Insert Scrape Cache": {
-      "main": [
-        [
-          {
-            "node": "Prepare Update Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Update Data": {
-      "main": [
-        [
-          {
-            "node": "Update Scenario Queue",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Schedule Trigger": { "main": [[{ "node": "Load Pending Items", "type": "main", "index": 0 }]] },
+    "Load Pending Items": { "main": [[{ "node": "Items Found?", "type": "main", "index": 0 }]] },
+    "Items Found?": { "main": [[], [{ "node": "Batch Processor", "type": "main", "index": 0 }]] },
+    "Batch Processor": { "main": [[{ "node": "Check Cache", "type": "main", "index": 0 }]] },
+    "Check Cache": { "main": [[{ "node": "Cache Hit?", "type": "main", "index": 0 }]] },
+    "Cache Hit?": { "main": [[{ "node": "Firecrawl Scrape", "type": "main", "index": 0 }], [{ "node": "Merge Scraped Data", "type": "main", "index": 0 }]] },
+    "Firecrawl Scrape": { "main": [[{ "node": "Merge Scraped Data", "type": "main", "index": 0 }]] },
+    "Merge Scraped Data": { "main": [[{ "node": "Insert Cache", "type": "main", "index": 0 }]] },
+    "Insert Cache": { "main": [[{ "node": "Update Queue", "type": "main", "index": 0 }]] }
   },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1",
-    "timezone": "UTC",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
-  },
-  "staticData": null,
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
   "tags": [],
-  "pinData": {}
+  "active": false
 }

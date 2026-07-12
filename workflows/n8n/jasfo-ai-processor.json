@@ -2,27 +2,30 @@
   "name": "JASFO AI Processor",
   "nodes": [
     {
-      "id": "a1b2c3d4-0001-4000-8000-000000000001",
-      "name": "Schedule Trigger",
+      "id": "2f1a8c3e-5b7d-4e9a-9f1c-6d8b2a4e3c1d",
+      "name": "Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [0, 0],
+      "position": [250, 300],
       "parameters": {
         "rule": {
-          "cronExpression": "*/30 * * * 1-2",
-          "interval": null
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * 1-2"
+            }
+          ]
         }
       }
     },
     {
-      "id": "a1b2c3d4-0002-4000-8000-000000000002",
-      "name": "Load AI Ready Items",
+      "id": "3a5b8c1d-2e4f-6a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Load Items",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [250, 0],
+      "position": [250, 500],
       "parameters": {
-        "method": "GET",
-        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?status=eq.completed&next_step=eq.ai_ready&select=*&order=updated_at.asc&limit=5",
+        "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?next_step=eq.ai_ready&select=*&limit=5",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -34,49 +37,41 @@
             {
               "name": "Authorization",
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "a1b2c3d4-0003-4000-8000-000000000003",
-      "name": "Items Found?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [500, 0],
-      "parameters": {
-        "conditions": {
-          "number": [
+            },
             {
-              "value1": "={{ $json.length }}",
-              "operation": "larger",
-              "value2": 0
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
             }
           ]
-        }
+        },
+        "method": "GET",
+        "sendBody": false,
+        "options": {}
       }
     },
     {
-      "id": "a1b2c3d4-0004-4000-8000-000000000004",
-      "name": "Batch Processor",
+      "id": "4c6d9e1f-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
+      "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [750, 0],
+      "typeVersion": 1,
+      "position": [250, 700],
       "parameters": {
         "batchSize": 1,
         "options": {}
       }
     },
     {
-      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "id": "5d7e0f1a-2b3c-4d5e-6f7a-8b9c0d1e2f3a",
       "name": "Load Scrape Cache",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1000, 0],
+      "position": [250, 900],
       "parameters": {
-        "method": "GET",
-        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scrape_cache?company_domain=eq.' + encodeURIComponent($json.company_domain || $json.scrapedData?.company_domain || '') + '&source_type=eq.company_profile&select=*' }}",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scrape_cache?id=eq.' + $json.scrape_cache_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -88,48 +83,39 @@
             {
               "name": "Authorization",
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
             }
           ]
-        }
+        },
+        "method": "GET",
+        "sendBody": false,
+        "options": {}
       }
     },
     {
-      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "id": "6e8f1a2b-3c4d-5e6f-7a8b-9c0d1e2f3a4b",
       "name": "Build AI Prompt",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1250, 0],
+      "typeVersion": 1,
+      "position": [250, 1100],
       "parameters": {
-        "language": "javaScript",
-        "code": "const item = $input.first().json;\n\nconst runId = item.run_id || '';\nconst domain = item.company_domain || '';\n\nconst scrapedData = item.data && item.data.length > 0 ? item.data[0] : item;\n\ndomain ||= scrapedData.company_domain || '';\n\nconst systemPrompt = `You are a business intelligence analyst. Extract structured company intelligence from the provided scraped data. Return ONLY valid JSON following the schema exactly.`;\n\nconst userPrompt = `Analyze this company data and extract:\n- Company overview (name, description, founded, employees, location)\n- Technology stack and products\n- Market position and competitors\n- Recent news and funding\n- Key personnel\n\nCompany data:\n${JSON.stringify(scrapedData, null, 2)}`;\n\nconst fullText = systemPrompt + userPrompt;\nconst estimatedTokens = Math.ceil(fullText.length / 4);\n\nreturn [{\n  json: {\n    run_id: runId,\n    company_domain: domain,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    estimatedTokens: estimatedTokens,\n    raw_data: scrapedData\n  }\n}];"
+        "jsCode": "const item = $json;\nconst scrapeList = Array.isArray(item) ? item : [item];\nconst data = scrapeList[0] || item;\nconst scrapeData = data.scrape_data || {};\nconst content = scrapeData.content || data.content || '';\nconst url = scrapeData.url || data.url || '';\nconst title = scrapeData.title || data.title || '';\nconst estimatedTokens = content.length;\n\nlet model = 'deepseek-v4-flash';\nif (estimatedTokens > 100000) {\n  model = 'mimo-v2.5';\n}\n\nconst systemPrompt = 'You are an expert business analyst. Extract structured intelligence from web content including company identification, industry classification, key insights, and confidence scoring. Return valid JSON only.';\n\nconst userPrompt = 'URL: ' + url + '\\nTitle: ' + title + '\\n\\nContent:\\n' + content.substring(0, 150000) + '\\n\\nAnalyze this content and extract structured intelligence as JSON with fields: company_name, industry, summary, key_insights (array), confidence_score (0-100).';\n\nconst messages = [\n  { role: 'system', content: systemPrompt },\n  { role: 'user', content: userPrompt }\n];\n\nreturn {\n  ...data,\n  messages,\n  model,\n  estimatedTokens\n};"
       }
     },
     {
-      "id": "a1b2c3d4-0007-4000-8000-000000000007",
-      "name": "Token Check >100K?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1500, 0],
-      "parameters": {
-        "conditions": {
-          "number": [
-            {
-              "value1": "={{ $json.estimatedTokens }}",
-              "operation": "larger",
-              "value2": 100000
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "a1b2c3d4-0008-4000-8000-000000000008",
-      "name": "OpenCode DeepSeek V4",
+      "id": "7f9a0b1c-2d3e-4f5a-6b7c-8d9e0f1a2b3c",
+      "name": "Call OC API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1750, -150],
+      "position": [250, 1300],
       "parameters": {
-        "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
         "authentication": "none",
         "sendHeaders": true,
@@ -146,117 +132,48 @@
           ]
         },
         "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: $json.system_prompt },\n    { role: 'user', content: $json.user_prompt }\n  ],\n  temperature: 0.1,\n  max_tokens: 8192,\n  response_format: { type: 'json_object' }\n}) }}"
-      }
-    },
-    {
-      "id": "a1b2c3d4-0009-4000-8000-000000000009",
-      "name": "OpenCode MiMo v2.5",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1750, 150],
-      "parameters": {
-        "method": "POST",
-        "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
+        "bodyContentType": "json",
+        "bodyParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+              "name": "model",
+              "value": "={{ $json.model }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "messages",
+              "value": "={{ $json.messages }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.7
+            },
+            {
+              "name": "max_tokens",
+              "value": 4096
             }
           ]
         },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  model: 'mimo-v2.5',\n  messages: [\n    { role: 'system', content: $json.system_prompt },\n    { role: 'user', content: $json.user_prompt }\n  ],\n  temperature: 0.1,\n  max_tokens: 8192,\n  response_format: { type: 'json_object' }\n}) }}"
+        "method": "POST",
+        "options": {}
       }
     },
     {
-      "id": "a1b2c3d4-0010-4000-8000-000000000010",
-      "name": "Parse JSON Response",
+      "id": "8a0b1c2d-3e4f-5a6b-7c8d-9e0f1a2b3c4d",
+      "name": "Parse And Validate",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2050, 0],
+      "typeVersion": 1,
+      "position": [250, 1500],
       "parameters": {
-        "language": "javaScript",
-        "code": "const item = $input.first().json;\n\nlet parsed = null;\nlet parseError = null;\n\nconst content = item.choices && item.choices[0] && item.choices[0].message && item.choices[0].message.content;\n\nif (!content) {\n  parseError = 'No content in response';\n} else {\n  try {\n    parsed = JSON.parse(content);\n  } catch (e) {\n    try {\n      const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n      parsed = JSON.parse(cleaned);\n    } catch (e2) {\n      parseError = 'Failed to parse response: ' + e2.message;\n    }\n  }\n}\n\nreturn [{\n  json: {\n    run_id: item.run_id || $json.run_id || '',\n    company_domain: item.company_domain || $json.company_domain || '',\n    parsed_result: parsed,\n    parse_error: parseError,\n    parse_success: parseError === null,\n    raw_response: content || '',\n    model_used: item.model || 'deepseek-v4-flash',\n    processing_time_ms: item.processing_time_ms || 0\n  }\n}];"
+        "jsCode": "const response = $json;\nconst rawContent = response.choices && response.choices[0] && response.choices[0].message && response.choices[0].message.content ? response.choices[0].message.content : '';\n\nif (!rawContent) {\n  throw new Error('Empty response from AI');\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(rawContent);\n} catch (e) {\n  throw new Error('Failed to parse AI response: ' + e.message);\n}\n\nconst requiredFields = ['company_name', 'industry', 'summary', 'key_insights', 'confidence_score'];\nfor (const field of requiredFields) {\n  if (parsed[field] === undefined || parsed[field] === null) {\n    throw new Error('Missing required field: ' + field);\n  }\n}\n\nreturn {\n  ...response,\n  extraction: parsed,\n  raw_response: rawContent\n};"
       }
     },
     {
-      "id": "a1b2c3d4-0011-4000-8000-000000000011",
-      "name": "Parse Success?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [2300, 0],
-      "parameters": {
-        "conditions": {
-          "boolean": [
-            {
-              "value1": "={{ $json.parse_success }}",
-              "operation": "equal",
-              "value2": true
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "a1b2c3d4-0012-4000-8000-000000000012",
-      "name": "Repair Bad JSON",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2550, 150],
-      "parameters": {
-        "method": "POST",
-        "url": "https://opencode.ai/zen/go/v1/chat/completions",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  model: 'deepseek-v4-flash',\n  messages: [\n    { role: 'system', content: 'You fix malformed JSON. Return ONLY valid JSON. No explanations.' },\n    { role: 'user', content: 'Fix this invalid JSON:\\n' + $json.raw_response }\n  ],\n  temperature: 0.0,\n  max_tokens: 8192,\n  response_format: { type: 'json_object' }\n}) }}"
-      }
-    },
-    {
-      "id": "a1b2c3d4-0013-4000-8000-000000000013",
-      "name": "Validate Schema",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2800, -150],
-      "parameters": {
-        "language": "javaScript",
-        "code": "const item = $input.first().json;\nconst data = item.parsed_result || item;\n\nconst validated = {\n  company_name: data.company_name || data.name || null,\n  company_description: data.company_description || data.description || null,\n  founded: data.founded || data.founded_year || null,\n  employees: data.employees || data.employee_count || null,\n  location: data.location || data.headquarters || null,\n  technology_stack: data.technology_stack || data.tech_stack || [],\n  products: data.products || [],\n  market_position: data.market_position || data.market_info || null,\n  competitors: data.competitors || [],\n  recent_news: data.recent_news || [],\n  funding: data.funding || null,\n  key_personnel: data.key_personnel || [],\n  confidence_score: data.confidence_score || data.confidence || 0.5\n};\n\nconst validationErrors = [];\nif (!validated.company_name) validationErrors.push('Missing company_name');\n\nreturn [{\n  json: {\n    run_id: item.run_id || '',\n    company_domain: item.company_domain || '',\n    company_data: validated,\n    confidence_scores: {\n      overall: validated.confidence_score,\n      data_completeness: Object.values(validated).filter(v => v !== null && v !== '' && v !== undefined).length / Object.keys(validated).length\n    },\n    model_used: item.model_used || 'deepseek-v4-flash',\n    processing_time_ms: item.processing_time_ms || 0,\n    validation_errors: validationErrors,\n    validation_pass: validationErrors.length === 0\n  }\n}];"
-      }
-    },
-    {
-      "id": "a1b2c3d4-0014-4000-8000-000000000014",
+      "id": "9b1c2d3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e",
       "name": "Insert AI Extraction",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3050, -150],
+      "position": [250, 1700],
       "parameters": {
-        "method": "POST",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/ai_extractions",
         "authentication": "none",
         "sendHeaders": true,
@@ -271,26 +188,69 @@
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
               "name": "Prefer",
               "value": "return=representation"
             }
           ]
         },
         "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  run_id: $json.run_id,\n  company_domain: $json.company_domain,\n  company_data: $json.company_data,\n  confidence_scores: $json.confidence_scores,\n  model_used: $json.model_used,\n  processing_time_ms: $json.processing_time_ms\n}) }}"
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "scenario_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $json.extraction.company_name }}"
+            },
+            {
+              "name": "industry",
+              "value": "={{ $json.extraction.industry }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $json.extraction.summary }}"
+            },
+            {
+              "name": "key_insights",
+              "value": "={{ $json.extraction.key_insights }}"
+            },
+            {
+              "name": "confidence_score",
+              "value": "={{ $json.extraction.confidence_score }}"
+            },
+            {
+              "name": "raw_response",
+              "value": "={{ $json.raw_response }}"
+            },
+            {
+              "name": "created_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "method": "POST",
+        "options": {}
       }
     },
     {
-      "id": "a1b2c3d4-0015-4000-8000-000000000015",
-      "name": "Update Queue to Scoring Ready",
+      "id": "0c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
+      "name": "Update Queue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3300, -150],
+      "position": [250, 1900],
       "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + encodeURIComponent($json.run_id) + '&company_domain=eq.' + encodeURIComponent($json.company_domain) }}",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?id=eq.' + $json.id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -304,42 +264,46 @@
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
               "name": "Prefer",
               "value": "return=representation"
             }
           ]
         },
         "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  next_step: 'scoring_ready',\n  updated_at: new Date().toISOString()\n}) }}"
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "next_step",
+              "value": "scoring_ready"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "options": {}
       }
     }
   ],
   "connections": {
-    "Schedule Trigger": {
+    "Schedule": {
       "main": [
         [
-          { "node": "Load AI Ready Items", "type": "main", "index": 0 }
+          { "node": "Load Items", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Load AI Ready Items": {
+    "Load Items": {
       "main": [
         [
-          { "node": "Items Found?", "type": "main", "index": 0 }
+          { "node": "Split In Batches", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Items Found?": {
-      "main": [
-        [
-          { "node": "Batch Processor", "type": "main", "index": 0 }
-        ],
-        []
-      ]
-    },
-    "Batch Processor": {
+    "Split In Batches": {
       "main": [
         [
           { "node": "Load Scrape Cache", "type": "main", "index": 0 }
@@ -356,59 +320,18 @@
     "Build AI Prompt": {
       "main": [
         [
-          { "node": "Token Check >100K?", "type": "main", "index": 0 }
+          { "node": "Call OC API", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Token Check >100K?": {
+    "Call OC API": {
       "main": [
         [
-          { "node": "OpenCode DeepSeek V4", "type": "main", "index": 0 }
-        ],
-        [
-          { "node": "OpenCode MiMo v2.5", "type": "main", "index": 0 }
+          { "node": "Parse And Validate", "type": "main", "index": 0 }
         ]
       ]
     },
-    "OpenCode DeepSeek V4": {
-      "main": [
-        [
-          { "node": "Parse JSON Response", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "OpenCode MiMo v2.5": {
-      "main": [
-        [
-          { "node": "Parse JSON Response", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "Parse JSON Response": {
-      "main": [
-        [
-          { "node": "Parse Success?", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "Parse Success?": {
-      "main": [
-        [
-          { "node": "Validate Schema", "type": "main", "index": 0 }
-        ],
-        [
-          { "node": "Repair Bad JSON", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "Repair Bad JSON": {
-      "main": [
-        [
-          { "node": "Parse JSON Response", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "Validate Schema": {
+    "Parse And Validate": {
       "main": [
         [
           { "node": "Insert AI Extraction", "type": "main", "index": 0 }
@@ -418,21 +341,14 @@
     "Insert AI Extraction": {
       "main": [
         [
-          { "node": "Update Queue to Scoring Ready", "type": "main", "index": 0 }
+          { "node": "Update Queue", "type": "main", "index": 0 }
         ]
       ]
     }
   },
   "settings": {
-    "saveDataErrorExecution": "all",
-    "saveDataSuccessExecution": "all",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "timezone": "UTC"
+    "executionOrder": "v1"
   },
   "staticData": null,
-  "tags": [],
-  "pinData": {},
-  "versionId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-  "triggerCount": 0
+  "tags": []
 }

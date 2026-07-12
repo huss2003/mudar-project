@@ -2,26 +2,29 @@
   "name": "JASFO Export Processor",
   "nodes": [
     {
-      "id": "c1d2e3f4-0001-4000-8000-000000000001",
-      "name": "Schedule Trigger",
+      "id": "e7f8a9b0-c1d2-3efa-efab-567890123456",
+      "name": "Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [0, 0],
+      "position": [250, 300],
       "parameters": {
         "rule": {
-          "cronExpression": "*/30 * * * 1-2",
-          "interval": null
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * 1-2"
+            }
+          ]
         }
       }
     },
     {
-      "id": "c1d2e3f4-0002-4000-8000-000000000002",
-      "name": "Load Export Ready Items",
+      "id": "f8a9b0c1-d2e3-4fab-fabc-678901234567",
+      "name": "Load Items",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [250, 0],
+      "position": [250, 500],
       "parameters": {
-        "method": "GET",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?next_step=eq.export_ready&select=*&limit=10",
         "authentication": "none",
         "sendHeaders": true,
@@ -34,31 +37,41 @@
             {
               "name": "Authorization",
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
             }
           ]
-        }
+        },
+        "method": "GET",
+        "sendBody": false,
+        "options": {}
       }
     },
     {
-      "id": "c1d2e3f4-0003-4000-8000-000000000003",
-      "name": "Batch Processor",
+      "id": "a9b0c1d2-e3f4-5abc-abcd-789012345678",
+      "name": "Split In Batches",
       "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [500, 0],
+      "typeVersion": 1,
+      "position": [250, 700],
       "parameters": {
         "batchSize": 1,
         "options": {}
       }
     },
     {
-      "id": "c1d2e3f4-0004-4000-8000-000000000004",
+      "id": "b0c1d2e3-f4a5-6bcd-bcde-890123456789",
       "name": "Load Score Card",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [750, 0],
+      "position": [250, 900],
       "parameters": {
-        "method": "GET",
-        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/score_cards?company_domain=eq.' + encodeURIComponent($json.company_domain || '') + '&run_id=eq.' + encodeURIComponent($json.run_id || '') + '&select=*' }}",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/score_cards?id=eq.' + $json.score_card_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -70,20 +83,30 @@
             {
               "name": "Authorization",
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
             }
           ]
-        }
+        },
+        "method": "GET",
+        "sendBody": false,
+        "options": {}
       }
     },
     {
-      "id": "c1d2e3f4-0005-4000-8000-000000000005",
+      "id": "c1d2e3f4-a5b6-7cde-cdef-901234567890",
       "name": "Load AI Extraction",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1000, 0],
+      "position": [250, 1100],
       "parameters": {
-        "method": "GET",
-        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/ai_extractions?company_domain=eq.' + encodeURIComponent($json.company_domain || '') + '&select=*' }}",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/ai_extractions?id=eq.' + $json.extraction_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -95,30 +118,39 @@
             {
               "name": "Authorization",
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
             }
           ]
-        }
+        },
+        "method": "GET",
+        "sendBody": false,
+        "options": {}
       }
     },
     {
-      "id": "c1d2e3f4-0006-4000-8000-000000000006",
+      "id": "d2e3f4a5-b6c7-8def-defa-012345678901",
       "name": "Build Telegram Message",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1250, 0],
+      "typeVersion": 1,
+      "position": [250, 1300],
       "parameters": {
-        "language": "javaScript",
-        "code": "const item = $input.first().json;\n\nconst scoreCard = item.data && item.data.length > 0 ? item.data : [];\nconst score = scoreCard[0] || {};\nconst extraction = item.data_ai && item.data_ai.length > 0 ? item.data_ai[0] : {};\n\nconst companyName = score.company_name || score.company_domain || 'Unknown';\nconst composite = score.composite_score || score.adjusted_score || 0;\nconst pillars = score.pillars || [];\nconst risks = score.key_risks || score.risk_factors || [];\nconst recommendation = score.recommendation || 'N/A';\nconst companyData = extraction.company_data || {};\n\nlet pillarsBlock = 'No pillar scores available.';\nif (pillars.length > 0) {\n  pillarsBlock = pillars.map(p => `├ ${p.label}: *${p.score}/100* (${p.weight * 100}%) -> ${p.weighted_score} pts`).join('\\n');\n}\n\nlet risksBlock = 'None identified';\nif (risks.length > 0) {\n  risksBlock = risks.map(r => `⚠️ ${r}`).join('\\n');\n}\n\nconst desc = companyData.company_description || '';\nconst descTrimmed = desc.length > 300 ? desc.substring(0, 300) + '...' : desc;\n\nconst message = `🏢 *JASFO Score Report*\\n\\n📌 *${companyName}*\\n${score.company_domain ? '🌐 ' + score.company_domain : ''}\\n${descTrimmed ? '\\n' + descTrimmed : ''}\\n\\n📊 *Overall Score: ${composite}/100*\\n${recommendation ? '\\n💡 *Recommendation:* ' + recommendation : ''}\\n\\n*Pillar Breakdown:*\\n${pillarsBlock}\\n\\n*Risk Factors:*\\n${risksBlock}\\n\\n📅 ${new Date().toISOString().split('T')[0]} | JASFO Intelligence`;\n\nreturn [{\n  json: {\n    run_id: score.run_id || item.run_id || '',\n    company_domain: score.company_domain || item.company_domain || '',\n    company_name: companyName,\n    score_card: score,\n    telegram_message: message\n  }\n}];"
+        "jsCode": "const item = $json;\nconst scoreCardList = Array.isArray(item) ? item : [item];\nconst scoreCard = scoreCardList[0] || item;\n\nconst extraction = scoreCard.extraction || {};\nconst url = scoreCard.url || '';\nconst company = extraction.company_name || 'Unknown Company';\nconst compositeScore = scoreCard.composite_score || 'N/A';\nconst summary = (extraction.summary || '').substring(0, 300);\n\nconst scores = scoreCard.scores || {};\nlet breakdown = '';\nif (typeof scores === 'object') {\n  for (const key in scores) {\n    const s = scores[key];\n    if (s && s.score !== undefined) {\n      breakdown = breakdown + '\\n' + key.replace('_', ' ') + ': ' + s.score;\n    }\n  }\n}\n\nconst text = '\\ud83d\\udcca *Export Ready: ' + company + '*\\n' +\n  '\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n' +\n  '*Composite Score:* ' + compositeScore + '/100\\n' +\n  '*URL:* ' + url + '\\n' +\n  '\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n' +\n  '*Breakdown:*' + breakdown + '\\n' +\n  '\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\u2500\\n' +\n  '*Summary:* ' + summary;\n\nreturn {\n  ...item,\n  scenario_id: item.id || item.scenario_id,\n  score_card: scoreCard,\n  ai_extraction: extraction,\n  tg_chat_id: '-5497421027',\n  tg_text: text,\n  tg_parse_mode: 'Markdown'\n};"
       }
     },
     {
-      "id": "c1d2e3f4-0007-4000-8000-000000000007",
+      "id": "e3f4a5b6-c7d8-9efa-efab-123456789012",
       "name": "Send Telegram",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1500, 0],
+      "position": [250, 1500],
       "parameters": {
-        "method": "POST",
         "url": "https://api.telegram.org/bot8688503635:AAH4obxx3lGXYhoke1hR8mFJvoTvflVRrnE/sendMessage",
         "authentication": "none",
         "sendHeaders": true,
@@ -131,19 +163,34 @@
           ]
         },
         "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  chat_id: '-5497421027',\n  text: $json.telegram_message,\n  parse_mode: 'Markdown'\n}) }}"
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "-5497421027"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.tg_text }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "method": "POST",
+        "options": {}
       }
     },
     {
-      "id": "c1d2e3f4-0008-4000-8000-000000000008",
-      "name": "Archive Report",
+      "id": "f4a5b6c7-d8e9-0fab-fabc-234567890123",
+      "name": "Insert Report Archive",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1750, 0],
+      "position": [250, 1700],
       "parameters": {
-        "method": "POST",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/report_archive",
         "authentication": "none",
         "sendHeaders": true,
@@ -158,26 +205,65 @@
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
               "name": "Prefer",
               "value": "return=representation"
             }
           ]
         },
         "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  run_id: $json.run_id,\n  company_domain: $json.company_domain,\n  company_name: $json.company_name,\n  score_card: $json.score_card,\n  telegram_message: $json.telegram_message,\n  archived_at: new Date().toISOString()\n}) }}"
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "scenario_id",
+              "value": "={{ $json.scenario_id }}"
+            },
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $json.ai_extraction.company_name }}"
+            },
+            {
+              "name": "composite_score",
+              "value": "={{ $json.score_card.composite_score }}"
+            },
+            {
+              "name": "scores",
+              "value": "={{ $json.score_card.scores }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $json.ai_extraction.summary }}"
+            },
+            {
+              "name": "tg_message",
+              "value": "={{ $json.tg_text }}"
+            },
+            {
+              "name": "exported_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "method": "POST",
+        "options": {}
       }
     },
     {
-      "id": "c1d2e3f4-0009-4000-8000-000000000009",
-      "name": "Update Queue to Done",
+      "id": "a5b6c7d8-e9f0-1abc-bcde-345678901234",
+      "name": "Update Queue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2000, 0],
+      "position": [250, 1900],
       "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?run_id=eq.' + encodeURIComponent($json.run_id) + '&company_domain=eq.' + encodeURIComponent($json.company_domain) }}",
+        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/scenario_queue?id=eq.' + $json.scenario_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -191,34 +277,46 @@
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
               "name": "Prefer",
               "value": "return=representation"
             }
           ]
         },
         "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  next_step: 'done',\n  updated_at: new Date().toISOString()\n}) }}"
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "done"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "options": {}
       }
     }
   ],
   "connections": {
-    "Schedule Trigger": {
+    "Schedule": {
       "main": [
         [
-          { "node": "Load Export Ready Items", "type": "main", "index": 0 }
+          { "node": "Load Items", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Load Export Ready Items": {
+    "Load Items": {
       "main": [
         [
-          { "node": "Batch Processor", "type": "main", "index": 0 }
+          { "node": "Split In Batches", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Batch Processor": {
+    "Split In Batches": {
       "main": [
         [
           { "node": "Load Score Card", "type": "main", "index": 0 }
@@ -249,28 +347,21 @@
     "Send Telegram": {
       "main": [
         [
-          { "node": "Archive Report", "type": "main", "index": 0 }
+          { "node": "Insert Report Archive", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Archive Report": {
+    "Insert Report Archive": {
       "main": [
         [
-          { "node": "Update Queue to Done", "type": "main", "index": 0 }
+          { "node": "Update Queue", "type": "main", "index": 0 }
         ]
       ]
     }
   },
   "settings": {
-    "saveDataErrorExecution": "all",
-    "saveDataSuccessExecution": "all",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "timezone": "UTC"
+    "executionOrder": "v1"
   },
   "staticData": null,
-  "tags": [],
-  "pinData": {},
-  "versionId": "01234567-89ab-cdef-0123-456789abcdef",
-  "triggerCount": 0
+  "tags": []
 }
