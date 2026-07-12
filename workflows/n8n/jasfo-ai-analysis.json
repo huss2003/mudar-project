@@ -1,0 +1,423 @@
+{
+  "name": "Jasfo AI Analysis Pipeline",
+  "nodes": [
+    {
+      "id": "wh-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jasfo-ai-analysis",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "cp-001",
+      "name": "Prepare Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 300],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const item = $input.first().json;\nconst { run_id, company_name, company_domain, crawl_data, search_results } = item;\n\nconst systemPrompt = `You are an expert entity extraction AI. Extract structured company intelligence from the provided data. Return ONLY valid JSON.`;\n\nconst userPrompt = `Extract structured entities from this company data.\n\nCompany Name: ${company_name || 'Unknown'}\nDomain: ${company_domain || 'Unknown'}\n\n## Crawled Data\n${(crawl_data || 'N/A').substring(0, 80000)}\n\n## Search Results\n${(search_results || 'N/A').substring(0, 40000)}\n\nRequired JSON structure:\n{\n  \"company\": { \"name\": \"string\", \"domain\": \"string\", \"description\": \"string\", \"industry\": \"string\", \"founded_year\": number|null, \"headquarters\": \"string\" },\n  \"products\": [{ \"name\": \"string\", \"description\": \"string\", \"category\": \"string\" }],\n  \"technologies\": [\"string\"],\n  \"key_people\": [{ \"name\": \"string\", \"role\": \"string\", \"linkedin\": \"string\" }],\n  \"financials\": { \"total_funding\": number|null, \"latest_round\": \"string\", \"investors\": [\"string\"] },\n  \"competitors\": [\"string\"],\n  \"confidence_scores\": { \"overall\": 0.0, \"data_quality\": 0.0, \"source_reliability\": 0.0 }\n}`;\n\nconst fullPrompt = `${systemPrompt}\\n\\n${userPrompt}`;\nconst estimatedTokens = Math.ceil(fullPrompt.length / 3.5);\nconst processingStart = Date.now();\n\nreturn [{\n  json: {\n    run_id,\n    company_name,\n    company_domain,\n    systemPrompt,\n    userPrompt,\n    prompt: fullPrompt,\n    estimatedTokens,\n    processingStart,\n    modelChoice: estimatedTokens > 100000 ? 'mimo' : 'deepseek'\n  }\n}];"
+      }
+    },
+    {
+      "id": "if-001",
+      "name": "Token > 100K?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.estimatedTokens }}",
+              "operation": "larger",
+              "value2": 100000
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ds-001",
+      "name": "OpenCode GO - DeepSeek",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 100],
+      "continueOnFail": true,
+      "parameters": {
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "deepseek-v4-flash"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{\"role\": \"system\", \"content\": $json.systemPrompt || \"Extract entities from the provided company data\"}, {\"role\": \"user\", \"content\": $json.prompt}] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.1
+            },
+            {
+              "name": "max_tokens",
+              "value": 8192
+            },
+            {
+              "name": "response_format",
+              "value": "={{ {\"type\": \"json_object\"} }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      }
+    },
+    {
+      "id": "mm-001",
+      "name": "OpenCode GO - MiMo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 500],
+      "continueOnFail": true,
+      "parameters": {
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mimo-v2.5"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{\"role\": \"system\", \"content\": $json.systemPrompt || \"Extract entities from the provided company data\"}, {\"role\": \"user\", \"content\": $json.prompt}] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.1
+            },
+            {
+              "name": "max_tokens",
+              "value": 8192
+            },
+            {
+              "name": "response_format",
+              "value": "={{ {\"type\": \"json_object\"} }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
+      }
+    },
+    {
+      "id": "if-002",
+      "name": "DeepSeek Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1200, 100],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.choices }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cp-002",
+      "name": "Parse JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const item = $input.first().json;\n\nlet modelUsed = 'unknown';\ntry {\n  const deNode = $node['DeepSeek Error?'];\n  if (deNode && deNode.json && deNode.json.choices && deNode.json.choices.length > 0) {\n    modelUsed = 'deepseek-v4-flash';\n  } else {\n    modelUsed = 'mimo-v2.5';\n  }\n} catch (e) {\n  modelUsed = 'mimo-v2.5';\n}\n\nconst aiResponse = item.choices?.[0]?.message?.content || item.response || JSON.stringify(item);\n\nlet parsedData = null;\nlet parseSuccess = false;\nlet parseError = null;\n\nif (item.error) {\n  const prepNode = $node['Prepare Prompt'];\n  return [{\n    json: {\n      ...item,\n      parsedData: null,\n      parseSuccess: false,\n      parseError: item.error.message || 'API call failed',\n      modelUsed,\n      run_id: prepNode.json.run_id,\n      company_domain: prepNode.json.company_domain\n    }\n  }];\n}\n\ntry {\n  let jsonStr = aiResponse;\n  const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    jsonStr = jsonMatch[1];\n  }\n  parsedData = JSON.parse(jsonStr.trim());\n  parseSuccess = true;\n} catch (e) {\n  parseError = e.message;\n}\n\nreturn [{\n  json: {\n    ...item,\n    parsedData,\n    parseSuccess,\n    parseError,\n    modelUsed,\n    rawResponse: parseSuccess ? undefined : aiResponse\n  }\n}];"
+      }
+    },
+    {
+      "id": "if-003",
+      "name": "Parse Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1800, 300],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.parseSuccess }}",
+              "operation": "equal",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cp-003",
+      "name": "Validate Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2100, 100],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const item = $input.first().json;\nconst data = item.parsedData;\nconst errors = [];\n\nif (!data || typeof data !== 'object') {\n  return [{ json: { ...item, schemaValid: false, schemaErrors: ['parsedData is not an object'], validationDetail: 'No valid data to validate' } }];\n}\n\nif (!data.company) errors.push('Missing top-level \"company\" object');\nelse {\n  if (!data.company.name) errors.push('Missing company.name');\n  if (!data.company.domain) errors.push('Missing company.domain');\n}\n\nif (data.products !== undefined && !Array.isArray(data.products)) errors.push('\"products\" must be an array');\nif (data.technologies !== undefined && !Array.isArray(data.technologies)) errors.push('\"technologies\" must be an array');\nif (data.competitors !== undefined && !Array.isArray(data.competitors)) errors.push('\"competitors\" must be an array');\n\nif (!data.confidence_scores || typeof data.confidence_scores !== 'object') {\n  errors.push('Missing or invalid \"confidence_scores\" object');\n} else {\n  if (typeof data.confidence_scores.overall !== 'number') errors.push('confidence_scores.overall must be a number');\n  if (typeof data.confidence_scores.data_quality !== 'number') data.confidence_scores.data_quality = data.confidence_scores.overall;\n  if (typeof data.confidence_scores.source_reliability !== 'number') data.confidence_scores.source_reliability = data.confidence_scores.overall;\n}\n\nreturn [{ json: { ...item, schemaValid: errors.length === 0, schemaErrors: errors, validationDetail: errors.length > 0 ? 'Schema validation failed: ' + errors.join('; ') : 'Schema validation passed' } }];"
+      }
+    },
+    {
+      "id": "if-004",
+      "name": "Schema Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2400, 100],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.schemaValid }}",
+              "operation": "equal",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "rr-001",
+      "name": "OpenCode GO - Repair",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 500],
+      "continueOnFail": true,
+      "parameters": {
+        "url": "https://opencode.ai/zen/go/v1/chat/completions",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "deepseek-chat"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{\"role\": \"system\", \"content\": \"You fix malformed JSON. Given a broken JSON string and the original extraction task, repair the JSON to match the required schema. Return ONLY valid JSON.\"}, {\"role\": \"user\", \"content\": \"Broken JSON: \" + ($json.rawResponse || JSON.stringify($json.parsedData)) + \"\\n\\nErrors: \" + ($json.parseError || $json.schemaErrors?.join('; ') || 'unknown') + \"\\n\\nRepair this JSON to match the entity extraction schema exactly.\"}] }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.05
+            },
+            {
+              "name": "max_tokens",
+              "value": 4096
+            },
+            {
+              "name": "response_format",
+              "value": "={{ {\"type\": \"json_object\"} }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "cp-004",
+      "name": "Re-parse Repair",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 500],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const item = $input.first().json;\n\nlet repairResponse = '';\nif (item.error) {\n  repairResponse = '{\"error\": \"Repair API failed\"}';\n} else {\n  repairResponse = item.choices?.[0]?.message?.content || item.response || '{}';\n}\n\nlet parsedData = null;\nlet repairSuccess = false;\n\ntry {\n  let jsonStr = repairResponse;\n  const jsonMatch = repairResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) jsonStr = jsonMatch[1];\n  parsedData = JSON.parse(jsonStr.trim());\n  repairSuccess = true;\n} catch (e) {\n  parsedData = { repair_error: e.message, raw_preview: repairResponse.substring(0, 500) };\n}\n\nreturn [{ json: { ...item, parsedData, repairSuccess } }];"
+      }
+    },
+    {
+      "id": "pg-001",
+      "name": "Insert Extraction",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2700, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ai_extractions (run_id, company_domain, company_data, confidence_scores, model_used, processing_time_ms) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6) RETURNING id, run_id, created_at;",
+        "additionalFields": {
+          "queryParams": "={{ [($node['Prepare Prompt'].json.run_id || ''), ($node['Prepare Prompt'].json.company_domain || ''), JSON.stringify($json.parsedData || {}), JSON.stringify(($json.parsedData || {}).confidence_scores || {}), ($json.modelUsed || 'unknown'), (Date.now() - ($node['Prepare Prompt'].json.processingStart || Date.now()))] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "id": "pg-002",
+      "name": "Update Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [3000, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scenario_queue SET status = 'completed', output_data = $1::jsonb, updated_at = NOW() WHERE run_id = $2 RETURNING id, run_id, status;",
+        "additionalFields": {
+          "queryParams": "={{ [JSON.stringify($json.parsedData || {}), ($node['Prepare Prompt'].json.run_id || '')] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{"node": "Prepare Prompt", "type": "main", "index": 0}]
+      ]
+    },
+    "Prepare Prompt": {
+      "main": [
+        [{"node": "Token > 100K?", "type": "main", "index": 0}]
+      ]
+    },
+    "Token > 100K?": {
+      "main": [
+        [{"node": "MiMo API", "type": "main", "index": 0}],
+        [{"node": "DeepSeek API", "type": "main", "index": 0}]
+      ]
+    },
+    "DeepSeek API": {
+      "main": [
+        [{"node": "DeepSeek Error?", "type": "main", "index": 0}]
+      ]
+    },
+    "DeepSeek Error?": {
+      "main": [
+        [{"node": "MiMo API", "type": "main", "index": 0}],
+        [{"node": "Parse JSON", "type": "main", "index": 0}]
+      ]
+    },
+    "MiMo API": {
+      "main": [
+        [{"node": "Parse JSON", "type": "main", "index": 0}]
+      ]
+    },
+    "Parse JSON": {
+      "main": [
+        [{"node": "Parse Success?", "type": "main", "index": 0}]
+      ]
+    },
+    "Parse Success?": {
+      "main": [
+        [{"node": "Validate Schema", "type": "main", "index": 0}],
+        [{"node": "Cheap Repair", "type": "main", "index": 0}]
+      ]
+    },
+    "Validate Schema": {
+      "main": [
+        [{"node": "Schema Valid?", "type": "main", "index": 0}]
+      ]
+    },
+    "Schema Valid?": {
+      "main": [
+        [{"node": "Insert Extraction", "type": "main", "index": 0}],
+        [{"node": "Cheap Repair", "type": "main", "index": 0}]
+      ]
+    },
+    "Cheap Repair": {
+      "main": [
+        [{"node": "Re-parse Repair", "type": "main", "index": 0}]
+      ]
+    },
+    "Re-parse Repair": {
+      "main": [
+        [{"node": "Insert Extraction", "type": "main", "index": 0}]
+      ]
+    },
+    "Insert Extraction": {
+      "main": [
+        [{"node": "Update Queue", "type": "main", "index": 0}]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "UTC",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromAll",
+    "executionOrder": "v1"
+  },
+  "tags": [],
+  "pinData": {},
+  "versionId": "",
+  "triggerCount": 0,
+  "active": false
+}

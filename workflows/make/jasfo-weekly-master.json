@@ -1,0 +1,352 @@
+{
+  "name": "Jasfo - Weekly Master",
+  "description": "Main orchestrator for Jasfo Lead Intelligence Platform. Runs every Monday 9AM UTC.",
+  "metadata": {
+    "version": 1,
+    "tags": ["weekly", "lead-intelligence", "orchestrator"]
+  },
+  "blueprint": {
+    "modules": [
+      {
+        "id": 1,
+        "module": "schedule:cron",
+        "name": "Weekly Trigger - Monday 09:00 UTC",
+        "parameters": {
+          "expression": "0 9 * * 1",
+          "timezone": "UTC"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "output": {
+          "timestamp": "{{timestamp}}",
+          "dayOfWeek": "{{dayOfWeek}}",
+          "timezone": "UTC"
+        }
+      },
+      {
+        "id": 2,
+        "module": "supabase:select",
+        "name": "Load Company Queue",
+        "parameters": {
+          "service_id": "{{secrets.SUPABASE_SERVICE_ID}}",
+          "table": "company_queue",
+          "filter_operator": "and",
+          "filter_rules": [
+            {
+              "field": "status",
+              "operator": "eq",
+              "value": "pending"
+            },
+            {
+              "field": "scheduled_week",
+              "operator": "eq",
+              "value": "{{formatDate(now, 'YYYY-WW')}}"
+            }
+          ],
+          "sort": [],
+          "limit": 10000
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 200,
+            "y": 0
+          }
+        },
+        "output": {
+          "totalCount": "{{totalCount}}"
+        }
+      },
+      {
+        "id": 3,
+        "module": "util:router",
+        "name": "Validate Company Data",
+        "parameters": {},
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 400,
+            "y": 0
+          }
+        },
+        "output": {}
+      },
+      {
+        "id": 4,
+        "module": "supabase:delete",
+        "name": "Clear Previous Queue Entries",
+        "parameters": {
+          "service_id": "{{secrets.SUPABASE_SERVICE_ID}}",
+          "table": "scenario_queue",
+          "filter_operator": "and",
+          "filter_rules": [
+            {
+              "field": "run_id",
+              "operator": "eq",
+              "value": "WF-{{formatDate(now, 'YYYYMMDDHHmmss')}}"
+            }
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 600,
+            "y": -180
+          }
+        },
+        "output": {
+          "affectedRows": "{{affectedRows}}"
+        }
+      },
+      {
+        "id": 5,
+        "module": "supabase:insert",
+        "name": "Enqueue Companies for Discovery",
+        "parameters": {
+          "service_id": "{{secrets.SUPABASE_SERVICE_ID}}",
+          "table": "scenario_queue"
+        },
+        "mapper": {
+          "columns": {
+            "run_id": "WF-{{formatDate(now, 'YYYYMMDDHHmmss')}}",
+            "company_name": "{{company_name}}",
+            "company_domain": "{{company_domain}}",
+            "scenario_step": "discovery",
+            "status": "pending"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 800,
+            "y": -180
+          }
+        },
+        "output": {
+          "insertedId": "{{id}}"
+        }
+      },
+      {
+        "id": 6,
+        "module": "aggregator:numeric",
+        "name": "Aggregate Processed Count",
+        "parameters": {
+          "aggregation_type": "count",
+          "group_by": []
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 1000,
+            "y": -180
+          }
+        },
+        "output": {
+          "totalProcessed": "{{aggregator.result}}"
+        }
+      },
+      {
+        "id": 7,
+        "module": "telegram:sendMessage",
+        "name": "Send Start Notification",
+        "parameters": {
+          "chat_id": "-5497421027",
+          "text": "\uD83D\uDCCA *Weekly Lead Intelligence Run Started*\n\n\u2022 Companies: {{aggregator.result}}\n\u2022 Run ID: WF-{{formatDate(now, 'YYYYMMDDHHmmss')}}\n\u2022 Started: {{formatDate(now, 'YYYY-MM-DD HH:mm:ss')}} UTC\n\u2022 Status: *In Progress*\n\n\u23F3 Polling queue for completion...",
+          "parse_mode": "Markdown"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 1200,
+            "y": 0
+          }
+        },
+        "output": {
+          "messageId": "{{message_id}}"
+        }
+      },
+      {
+        "id": 8,
+        "module": "util:repeater",
+        "name": "Poll Queue (30s \u00d7 180)",
+        "parameters": {
+          "iterations": 180,
+          "delay": 30000
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 1400,
+            "y": 0
+          }
+        },
+        "output": {
+          "iteration": "{{i}}"
+        }
+      },
+      {
+        "id": 9,
+        "module": "supabase:executeQuery",
+        "name": "Query Results by Status",
+        "parameters": {
+          "service_id": "{{secrets.SUPABASE_SERVICE_ID}}"
+        },
+        "mapper": {
+          "query": "SELECT status, COUNT(*)::int as count, MIN(updated_at) as first_updated, MAX(updated_at) as last_updated FROM scenario_queue WHERE run_id = 'WF-{{formatDate(now, 'YYYYMMDDHHmmss')}}' GROUP BY status ORDER BY status"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1600,
+            "y": 0
+          }
+        },
+        "output": {
+          "results": "{{results}}"
+        }
+      },
+      {
+        "id": 10,
+        "module": "aggregator:array",
+        "name": "Collect Final Result Bundles",
+        "parameters": {
+          "aggregation_type": "array",
+          "group_by": []
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 1800,
+            "y": 0
+          }
+        },
+        "output": {
+          "aggregatedResults": "{{aggregator.result}}"
+        }
+      },
+      {
+        "id": 11,
+        "module": "telegram:sendMessage",
+        "name": "Send Completion Report",
+        "parameters": {
+          "chat_id": "-5497421027",
+          "text": "\u2705 *Weekly Lead Intelligence Run Complete*\n\n\u2022 Run ID: WF-{{formatDate(now, 'YYYYMMDDHHmmss')}}\n\u2022 Completed: {{formatDate(now, 'YYYY-MM-DD HH:mm:ss')}} UTC\n\n\uD83D\uDCC8 *Results Summary:*\n{{#each aggregator.result}}  \u2022 {{status}}: {{count}}{{/each}}\n\n\u23F1 Duration: ~90 minutes\n\uD83D\uDCBE Companies processed: {{#each aggregator.result}}{{#if @first}}{{count}}{{/if}}{{/each}}",
+          "parse_mode": "Markdown"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 2000,
+            "y": 0
+          }
+        },
+        "output": {
+          "messageId": "{{message_id}}"
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": 1,
+        "from": 1,
+        "to": 2,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 2,
+        "from": 2,
+        "to": 3,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 3,
+        "from": 3,
+        "to": 4,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {
+          "label": "Valid (name exists & length >= 2)"
+        },
+        "filter": {
+          "operator": "and",
+          "conditions": [
+            {
+              "field": "company_name",
+              "operator": "exists",
+              "value": true
+            },
+            {
+              "field": "company_name",
+              "operator": "length_gte",
+              "value": 2
+            }
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "from": 4,
+        "to": 5,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 5,
+        "from": 5,
+        "to": 6,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 6,
+        "from": 6,
+        "to": 7,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 7,
+        "from": 7,
+        "to": 8,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 8,
+        "from": 8,
+        "to": 9,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 9,
+        "from": 9,
+        "to": 10,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      },
+      {
+        "id": 10,
+        "from": 10,
+        "to": 11,
+        "from_port": 0,
+        "to_port": 0,
+        "metadata": {}
+      }
+    ],
+    "storage": {}
+  }
+}

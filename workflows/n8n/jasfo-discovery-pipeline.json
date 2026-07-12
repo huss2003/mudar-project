@@ -1,0 +1,469 @@
+{
+  "name": "Jasfo - Discovery Pipeline",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Receive Company Data",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jasfo-discovery",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "notes": "Receives company data from the queue. Expected body: { run_id, company_name, company_domain }"
+    },
+    {
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Has Domain?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "domain-check",
+              "leftValue": "={{ $json.company_domain }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "notes": "Routes to cache check if company_domain exists, else error"
+    },
+    {
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Check Scrape Cache",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [500, 200],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT $1::text AS cache_key, response_data, TRUE AS cache_hit FROM scrape_cache WHERE cache_key = $1 AND source_type = 'company_profile' AND expires_at > NOW() UNION ALL SELECT $1::text AS cache_key, NULL::jsonb AS response_data, FALSE AS cache_hit WHERE NOT EXISTS (SELECT 1 FROM scrape_cache WHERE cache_key = $1 AND source_type = 'company_profile' AND expires_at > NOW()) LIMIT 1",
+        "queryParams": "={{ [$json.company_domain] }}"
+      },
+      "notes": "Always returns 1 row. cache_hit=true if fresh cache exists, else cache_hit=false"
+    },
+    {
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Cache Fresh?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [750, 200],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cache-check",
+              "leftValue": "={{ $json.cache_hit }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "notes": "true = use cached data, false = start Firecrawl crawl"
+    },
+    {
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Start Firecrawl Crawl",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Firecrawl API"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/crawl",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ 'https://' + $node['Receive Company Data'].json.company_domain }}"
+            },
+            {
+              "name": "maxDepth",
+              "value": 2
+            },
+            {
+              "name": "maxPages",
+              "value": 15
+            },
+            {
+              "name": "scrapeOptions",
+              "value": "={{ { formats: ['markdown', 'html'] } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Initiates async Firecrawl crawl job. Returns { id, url } for polling"
+    },
+    {
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Poll Crawl Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "parameters": {
+        "jsCode": "// Firecrawl crawl poller - polls GET /v1/crawl/{id} every 5s, max 60 iterations\nconst maxIterations = 60;\nconst pollIntervalMs = 5000;\n\nconst item = $input.first();\nconst crawlId = item.json && item.json.id;\n\nif (!crawlId) {\n  const errMsg = item.json && item.json.error ? item.json.error : 'No crawl ID returned from Firecrawl';\n  return [{ json: { crawlSuccess: false, error: errMsg } }];\n}\n\n// Access Firecrawl credential for the API token\ntry {\n  const credential = $credentials['Firecrawl API'];\n  const authValue = credential.value || credential.httpHeaderAuth?.value || '';\n  const apiKey = authValue.replace('Bearer ', '').trim();\n\n  if (!apiKey) {\n    return [{ json: { crawlSuccess: false, error: 'Firecrawl API key not found in credential' } }];\n  }\n\n  for (let i = 0; i < maxIterations; i++) {\n    try {\n      const response = await this.helpers.request({\n        method: 'GET',\n        uri: `https://api.firecrawl.dev/v1/crawl/${crawlId}`,\n        headers: { 'Authorization': `Bearer ${apiKey}` },\n        json: true\n      });\n\n      if (response.status === 'completed') {\n        const pages = response.pages || response.data || [];\n        return [{\n          json: {\n            crawlSuccess: true,\n            crawlData: response.data || [],\n            pages: pages,\n            pageCount: pages.length\n          }\n        }];\n      }\n\n      if (response.status === 'failed' || response.status === 'error') {\n        const errMsg = response.error || response.message || `Crawl failed with status: ${response.status}`;\n        return [{ json: { crawlSuccess: false, error: errMsg } }];\n      }\n\n      // Still running - continue polling\n    } catch (pollErr) {\n      // Transient HTTP error on last iteration\n      if (i === maxIterations - 1) {\n        return [{ json: { crawlSuccess: false, error: `Polling HTTP error: ${pollErr.message}` } }];\n      }\n    }\n\n    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));\n  }\n\n  return [{ json: { crawlSuccess: false, error: `Crawl polling timed out after ${maxIterations} iterations (${(maxIterations * pollIntervalMs) / 1000}s)` } }];\n} catch (err) {\n  return [{ json: { crawlSuccess: false, error: `Code node error: ${err.message}` } }];\n}"
+      },
+      "notes": "Polls GET /v1/crawl/{id} every 5s for up to 60 iterations. Returns { crawlSuccess, crawlData } or { crawlSuccess: false, error }"
+    },
+    {
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Crawl Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1500, 200],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "crawl-check",
+              "leftValue": "={{ $json.crawlSuccess }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "notes": "true = extract structured data, false = fallback to search"
+    },
+    {
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Firecrawl - Extract Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1750, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Firecrawl API"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ 'https://' + $node['Receive Company Data'].json.company_domain }}"
+            },
+            {
+              "name": "formats",
+              "value": "={{ ['markdown', 'json'] }}"
+            },
+            {
+              "name": "extract",
+              "value": "={{ { prompt: 'Extract the company name, description, headquarters location, industry sector, employee count range, list of products and services, key executives, mission statement, and technology stack from this company website' } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Scrapes the company domain with structured data extraction prompt"
+    },
+    {
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Firecrawl - Search Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1750, 350],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Firecrawl API"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/search",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $node['Receive Company Data'].json.company_name + ' ' + $node['Receive Company Data'].json.company_domain + ' company profile information about products services leadership' }}"
+            },
+            {
+              "name": "scrapeOptions",
+              "value": "={{ { formats: ['markdown'] } }}"
+            },
+            {
+              "name": "maxResults",
+              "value": 5
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Fallback when crawl fails. Uses Firecrawl search to find company info"
+    },
+    {
+      "id": "a1b2c3d4-0010-4000-8000-000000000010",
+      "name": "Insert into Scrape Cache",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [2000, 200],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO scrape_cache (cache_key, source_type, company_domain, response_data, expires_at, created_at) VALUES ($1, $2, $3, $4::jsonb, NOW() + INTERVAL '7 days', NOW()) ON CONFLICT (cache_key, source_type) DO UPDATE SET response_data = $4::jsonb, expires_at = NOW() + INTERVAL '7 days', updated_at = NOW() RETURNING *",
+        "queryParams": "={{ [$node['Receive Company Data'].json.company_domain, 'company_profile', $node['Receive Company Data'].json.company_domain, $json] }}"
+      },
+      "notes": "Upserts Firecrawl results into scrape_cache with 7-day TTL"
+    },
+    {
+      "id": "a1b2c3d4-0011-4000-8000-000000000011",
+      "name": "Update Queue - Completed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [2250, 200],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scenario_queue SET status = $1, output_data = $2::jsonb, updated_at = NOW() WHERE run_id = $3",
+        "queryParams": "={{ ['completed', $json.response_data, $node['Receive Company Data'].json.run_id] }}"
+      },
+      "notes": "Marks queue item completed with the output data"
+    },
+    {
+      "id": "a1b2c3d4-0012-4000-8000-000000000012",
+      "name": "Update Queue - Cached",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1000, 400],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scenario_queue SET status = $1, output_data = $2::jsonb, updated_at = NOW() WHERE run_id = $3",
+        "queryParams": "={{ ['completed', $json.response_data, $node['Receive Company Data'].json.run_id] }}"
+      },
+      "notes": "Marks queue item completed using cached data"
+    },
+    {
+      "id": "a1b2c3d4-0013-4000-8000-000000000013",
+      "name": "Update Queue - Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [500, 500],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scenario_queue SET status = $1, output_data = $2::jsonb, updated_at = NOW() WHERE run_id = $3",
+        "queryParams": "={{ ['error', JSON.stringify({ error: 'No company domain provided', company_name: $json.company_name, company_domain: $json.company_domain }), $json.run_id] }}"
+      },
+      "notes": "Marks queue item as error when no domain is provided"
+    }
+  ],
+  "connections": {
+    "Receive Company Data": {
+      "main": [
+        [
+          {
+            "node": "Has Domain?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Domain?": {
+      "main": [
+        [
+          {
+            "node": "Check Scrape Cache",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Queue - Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Scrape Cache": {
+      "main": [
+        [
+          {
+            "node": "Cache Fresh?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Fresh?": {
+      "main": [
+        [
+          {
+            "node": "Update Queue - Cached",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start Firecrawl Crawl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Firecrawl Crawl": {
+      "main": [
+        [
+          {
+            "node": "Poll Crawl Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Crawl Status": {
+      "main": [
+        [
+          {
+            "node": "Crawl Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl Success?": {
+      "main": [
+        [
+          {
+            "node": "Firecrawl - Extract Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Firecrawl - Search Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl - Extract Data": {
+      "main": [
+        [
+          {
+            "node": "Insert into Scrape Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl - Search Fallback": {
+      "main": [
+        [
+          {
+            "node": "Insert into Scrape Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert into Scrape Cache": {
+      "main": [
+        [
+          {
+            "node": "Update Queue - Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

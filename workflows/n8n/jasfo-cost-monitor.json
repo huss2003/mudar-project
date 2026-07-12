@@ -1,0 +1,169 @@
+{
+  "name": "Jasfo Cost Monitor",
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "cron", "expression": "0 * * * *"}]
+        }
+      }
+    },
+    {
+      "id": "postgres-query",
+      "name": "Query Today's Cost",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [480, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT layer_id, model_used, SUM(cost_cents) AS total_cents, COUNT(*) AS total_runs FROM cost_log WHERE recorded_at >= CURRENT_DATE GROUP BY layer_id, model_used ORDER BY total_cents DESC;"
+      },
+      "credentials": {
+        "postgres": { "id": "supabase-db", "name": "Supabase DB" }
+      }
+    },
+    {
+      "id": "code-calculate",
+      "name": "Calculate Budget",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "parameters": {
+        "language": "python",
+        "code": "import json\n\nitems = $input.all()\nrows = []\nif items:\n    rows = items[0].get(\"json\", {}).get(\"rows\", [])\n    if not rows:\n        rows = [item[\"json\"] for item in items]\n\nDAILY_BUDGET_CENTS = 2000  # $20.00\nWARNING_THRESHOLD = 0.8\n\nby_layer = {}\ntotal_cents = 0\n\nfor row in rows:\n    layer = row.get(\"layer_id\", \"unknown\")\n    model = row.get(\"model_used\", \"unknown\")\n    cents = int(row.get(\"total_cents\", 0))\n    runs = int(row.get(\"total_runs\", 0))\n    total_cents += cents\n\n    if layer not in by_layer:\n        by_layer[layer] = {\"models\": {}, \"layer_total_cents\": 0}\n    by_layer[layer][\"models\"][model] = {\"cost_cents\": cents, \"runs\": runs}\n    by_layer[layer][\"layer_total_cents\"] += cents\n\nbudget_percent = round((total_cents / DAILY_BUDGET_CENTS) * 100, 2)\n\nif total_cents >= DAILY_BUDGET_CENTS:\n    status = \"critical\"\nelif total_cents >= int(DAILY_BUDGET_CENTS * WARNING_THRESHOLD):\n    status = \"warning\"\nelse:\n    status = \"normal\"\n\nreturn [{\n    \"json\": {\n        \"total_cost_cents\": total_cents,\n        \"total_cost_dollars\": round(total_cents / 100, 4),\n        \"daily_budget_cents\": DAILY_BUDGET_CENTS,\n        \"daily_budget_dollars\": DAILY_BUDGET_CENTS / 100,\n        \"budget_percent\": budget_percent,\n        \"by_layer\": by_layer,\n        \"status\": status,\n        \"is_warning\": status == \"warning\",\n        \"is_critical\": status == \"critical\"\n    }\n}]"
+      }
+    },
+    {
+      "id": "if-warning",
+      "name": "Warning Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [960, 260],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "warning"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "if-critical",
+      "name": "Critical Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [960, 460],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "critical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "telegram-warning",
+      "name": "Telegram Warning",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1200, 200],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ -5497421027 }}",
+        "text": "⚠️ *Jasfo Cost Warning*\nDaily spend has exceeded 80% of budget.\n\n*Total:* ${{ $node['Calculate Budget'].json.total_cost_dollars }} / ${{ $node['Calculate Budget'].json.daily_budget_dollars }}\n*Usage:* {{ $node['Calculate Budget'].json.budget_percent }}%\n\n*Breakdown by Layer:*\n{% for layer, data in $node['Calculate Budget'].json.by_layer.items() %}- *{{ layer }}:* ${{ '%0.2f' % (data['layer_total_cents'] / 100) }}\n{% endfor %}\n\nAction: Monitor closely.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": "{{ $credentials.telegramApi }}"
+      }
+    },
+    {
+      "id": "telegram-critical",
+      "name": "Telegram Critical Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1200, 400],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ -5497421027 }}",
+        "text": "🚨 *Jasfo Cost Critical Alert*\nDaily budget has been exceeded!\n\n*Total:* ${{ $node['Calculate Budget'].json.total_cost_dollars }} / ${{ $node['Calculate Budget'].json.daily_budget_dollars }}\n*Usage:* {{ $node['Calculate Budget'].json.budget_percent }}%\n\n*Breakdown by Layer:*\n{% for layer, data in $node['Calculate Budget'].json.by_layer.items() %}- *{{ layer }}:* ${{ '%0.2f' % (data['layer_total_cents'] / 100) }}\n{% endfor %}\n\n*Recommended Action:* Pause enrichment layers immediately via Jasfo Admin.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": "{{ $credentials.telegramApi }}"
+      }
+    },
+    {
+      "id": "postgres-summary",
+      "name": "Log Cost Summary",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1440, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cost_summary (run_date, total_cost_cents, by_layer, budget_percent, status, created_at) VALUES (CURRENT_DATE, {{ $json.total_cost_cents }}, '{{ $json.by_layer | tojson | replace(\"'\", \"''\") }}'::jsonb, {{ $json.budget_percent }}, '{{ $json.status }}', NOW());"
+      },
+      "credentials": {
+        "postgres": { "id": "supabase-db", "name": "Supabase DB" }
+      }
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [[{"node": "Query Today's Cost", "type": "main", "index": 0}]]
+    },
+    "Query Today's Cost": {
+      "main": [[{"node": "Calculate Budget", "type": "main", "index": 0}]]
+    },
+    "Calculate Budget": {
+      "main": [
+        [{"node": "Warning Threshold?", "type": "main", "index": 0}],
+        [{"node": "Critical Threshold?", "type": "main", "index": 0}]
+      ]
+    },
+    "Warning Threshold?": {
+      "main": [
+        [{"node": "Telegram Warning", "type": "main", "index": 0}],
+        [{"node": "Log Cost Summary", "type": "main", "index": 0}]
+      ]
+    },
+    "Critical Threshold?": {
+      "main": [
+        [{"node": "Telegram Critical Alert", "type": "main", "index": 0}],
+        [{"node": "Log Cost Summary", "type": "main", "index": 0}]
+      ]
+    },
+    "Telegram Warning": {
+      "main": [[{"node": "Log Cost Summary", "type": "main", "index": 0}]]
+    },
+    "Telegram Critical Alert": {
+      "main": [[{"node": "Log Cost Summary", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "versionId": "jasfo-cost-monitor-v1",
+  "active": true,
+  "settings": {},
+  "tags": ["jasfo", "cost-monitor", "alerts"],
+  "createdAt": "2026-07-12T00:00:00.000Z",
+  "updatedAt": "2026-07-12T00:00:00.000Z"
+}

@@ -1,0 +1,736 @@
+{
+  "name": "Jasfo - Scoring Engine",
+  "description": "8-pillar AI scoring with consensus and reflection",
+  "metadata": { "version": 1 },
+  "blueprint": {
+    "modules": [
+      {
+        "id": 1,
+        "module": "webhook:custom",
+        "label": "Receive scoring request",
+        "parameters": {
+          "dataType": "json",
+          "webhookUrl": "/hook/jasfo-score"
+        },
+        "output": {
+          "company_id": "{{webhook.company_id}}",
+          "company_name": "{{webhook.company_name}}",
+          "user_id": "{{webhook.user_id}}",
+          "source": "{{webhook.source}}"
+        }
+      },
+      {
+        "id": 2,
+        "module": "supabase:selectRows",
+        "label": "Load AI extraction data",
+        "parameters": {
+          "connection": "Jasfo Supabase",
+          "table": "ai_extraction_data",
+          "filter": {
+            "company_id": "{{1.company_id}}"
+          },
+          "limit": 1,
+          "sort": [
+            { "column": "created_at", "direction": "desc" }
+          ]
+        },
+        "output": {
+          "extraction_id": "{{2.id}}",
+          "company_data": "{{2.data}}",
+          "created_at": "{{2.created_at}}"
+        }
+      },
+      {
+        "id": 3,
+        "module": "textparser:textAggregator",
+        "label": "Build scoring context",
+        "parameters": {
+          "mode": "advanced",
+          "items": [
+            { "key": "company_name", "value": "{{1.company_name}}" },
+            { "key": "industry", "value": "{{2.industry}}" },
+            { "key": "size", "value": "{{2.size}}" },
+            { "key": "revenue", "value": "{{2.revenue}}" },
+            { "key": "employees", "value": "{{2.employees}}" },
+            { "key": "location", "value": "{{2.location}}" },
+            { "key": "growth_rate", "value": "{{2.growth_rate}}" },
+            { "key": "funding", "value": "{{2.funding}}" },
+            { "key": "decision_makers", "value": "{{2.decision_makers}}" },
+            { "key": "real_estate_needs", "value": "{{2.real_estate_needs}}" },
+            { "key": "lease_expiry", "value": "{{2.lease_expiry}}" },
+            { "key": "move_timeline", "value": "{{2.move_timeline}}" },
+            { "key": "network_connections", "value": "{{2.network_connections}}" },
+            { "key": "evidence_sources", "value": "{{2.evidence_sources}}" },
+            { "key": "opportunity_signals", "value": "{{2.opportunity_signals}}" }
+          ],
+          "delimiter": "\n"
+        },
+        "output": {
+          "context": "{{3.text}}"
+        }
+      },
+      {
+        "id": 4,
+        "module": "http:request",
+        "label": "Score: Company Fit (10%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Company Fit for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Company Fit (weight: 10%)\nEvaluate industry relevance to commercial real estate, company maturity, location match, and likelihood of needing space solutions."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{4.data}}"
+        }
+      },
+      {
+        "id": 5,
+        "module": "http:request",
+        "label": "Score: Move Intent (35%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Move Intent for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Move Intent (weight: 35%)\nEvaluate lease expiry proximity, expansion signals, relocation news, headcount growth, and expressed need for new space. This is the highest-weighted pillar."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{5.data}}"
+        }
+      },
+      {
+        "id": 6,
+        "module": "http:request",
+        "label": "Score: Growth (15%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Growth trajectory for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Growth (weight: 15%)\nEvaluate revenue growth rate, headcount expansion, funding rounds, new office openings, and market expansion plans."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{6.data}}"
+        }
+      },
+      {
+        "id": 7,
+        "module": "http:request",
+        "label": "Score: Financial (12%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Financial health for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Financial (weight: 12%)\nEvaluate revenue, profitability, funding status, burn rate, creditworthiness, and ability to commit to long-term leases."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{7.data}}"
+        }
+      },
+      {
+        "id": 8,
+        "module": "http:request",
+        "label": "Score: Decision Maker (10%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Decision Maker accessibility for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Decision Maker (weight: 10%)\nEvaluate whether key decision makers (CEO, CFO, COO, Head of Real Estate) are identified, contactable, and engaged."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{8.data}}"
+        }
+      },
+      {
+        "id": 9,
+        "module": "http:request",
+        "label": "Score: Network (8%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Network proximity for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Network (weight: 8%)\nEvaluate mutual connections, warm introductions possible, existing relationships with key stakeholders, and network proximity to our brokers."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{9.data}}"
+        }
+      },
+      {
+        "id": 10,
+        "module": "http:request",
+        "label": "Score: Opportunity (5%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Opportunity timing for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Opportunity (weight: 5%)\nEvaluate immediate timing, competitive situation, broker relationship status, and any current active space requirements."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{10.data}}"
+        }
+      },
+      {
+        "id": 11,
+        "module": "http:request",
+        "label": "Score: Evidence (5%)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a commercial real estate scoring AI. Score companies on Evidence quality for CRE lead generation. Return JSON with score (0-100), reasoning, and signals."
+              },
+              {
+                "role": "user",
+                "content": "Company: {{1.company_name}}\nData: {{3.context}}\n\nScore pillar: Evidence (weight: 5%)\nEvaluate data completeness, confidence in extracted signals, source reliability, and corroboration across multiple data points."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2,
+            "max_tokens": 2000
+          }
+        },
+        "output": {
+          "raw_response": "{{11.data}}"
+        }
+      },
+      {
+        "id": 12,
+        "module": "textparser:parseJSON",
+        "label": "Parse Company Fit score",
+        "parameters": {
+          "text": "{{4.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "company_fit",
+          "score": "{{12.score}}",
+          "reasoning": "{{12.reasoning}}",
+          "signals": "{{12.signals}}",
+          "confidence": "{{12.confidence}}"
+        }
+      },
+      {
+        "id": 13,
+        "module": "textparser:parseJSON",
+        "label": "Parse Move Intent score",
+        "parameters": {
+          "text": "{{5.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "move_intent",
+          "score": "{{13.score}}",
+          "reasoning": "{{13.reasoning}}",
+          "signals": "{{13.signals}}",
+          "confidence": "{{13.confidence}}"
+        }
+      },
+      {
+        "id": 14,
+        "module": "textparser:parseJSON",
+        "label": "Parse Growth score",
+        "parameters": {
+          "text": "{{6.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "growth",
+          "score": "{{14.score}}",
+          "reasoning": "{{14.reasoning}}",
+          "signals": "{{14.signals}}",
+          "confidence": "{{14.confidence}}"
+        }
+      },
+      {
+        "id": 15,
+        "module": "textparser:parseJSON",
+        "label": "Parse Financial score",
+        "parameters": {
+          "text": "{{7.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "financial",
+          "score": "{{15.score}}",
+          "reasoning": "{{15.reasoning}}",
+          "signals": "{{15.signals}}",
+          "confidence": "{{15.confidence}}"
+        }
+      },
+      {
+        "id": 16,
+        "module": "textparser:parseJSON",
+        "label": "Parse Decision Maker score",
+        "parameters": {
+          "text": "{{8.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "decision_maker",
+          "score": "{{16.score}}",
+          "reasoning": "{{16.reasoning}}",
+          "signals": "{{16.signals}}",
+          "confidence": "{{16.confidence}}"
+        }
+      },
+      {
+        "id": 17,
+        "module": "textparser:parseJSON",
+        "label": "Parse Network score",
+        "parameters": {
+          "text": "{{9.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "network",
+          "score": "{{17.score}}",
+          "reasoning": "{{17.reasoning}}",
+          "signals": "{{17.signals}}",
+          "confidence": "{{17.confidence}}"
+        }
+      },
+      {
+        "id": 18,
+        "module": "textparser:parseJSON",
+        "label": "Parse Opportunity score",
+        "parameters": {
+          "text": "{{10.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "opportunity",
+          "score": "{{18.score}}",
+          "reasoning": "{{18.reasoning}}",
+          "signals": "{{18.signals}}",
+          "confidence": "{{18.confidence}}"
+        }
+      },
+      {
+        "id": 19,
+        "module": "textparser:parseJSON",
+        "label": "Parse Evidence score",
+        "parameters": {
+          "text": "{{11.raw_response}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "pillar": "evidence",
+          "score": "{{19.score}}",
+          "reasoning": "{{19.reasoning}}",
+          "signals": "{{19.signals}}",
+          "confidence": "{{19.confidence}}"
+        }
+      },
+      {
+        "id": 20,
+        "module": "supabase:selectRows",
+        "label": "Load existing scores for change detection",
+        "parameters": {
+          "connection": "Jasfo Supabase",
+          "table": "score_cards",
+          "filter": {
+            "company_id": "{{1.company_id}}"
+          },
+          "limit": 1,
+          "sort": [
+            { "column": "created_at", "direction": "desc" }
+          ]
+        },
+        "output": {
+          "existing_score": "{{20.composite_score}}",
+          "existing_scores": "{{20.scores}}",
+          "last_scored_at": "{{20.created_at}}"
+        }
+      },
+      {
+        "id": 21,
+        "module": "textparser:textAggregator",
+        "label": "Combine scores & calculate composite",
+        "parameters": {
+          "mode": "advanced",
+          "items": [
+            { "key": "company_id", "value": "{{1.company_id}}" },
+            { "key": "company_name", "value": "{{1.company_name}}" },
+            { "key": "company_fit_score", "value": "{{12.score}}" },
+            { "key": "company_fit_reasoning", "value": "{{12.reasoning}}" },
+            { "key": "company_fit_signals", "value": "{{12.signals}}" },
+            { "key": "company_fit_weight", "value": "10" },
+            { "key": "move_intent_score", "value": "{{13.score}}" },
+            { "key": "move_intent_reasoning", "value": "{{13.reasoning}}" },
+            { "key": "move_intent_signals", "value": "{{13.signals}}" },
+            { "key": "move_intent_weight", "value": "35" },
+            { "key": "growth_score", "value": "{{14.score}}" },
+            { "key": "growth_reasoning", "value": "{{14.reasoning}}" },
+            { "key": "growth_signals", "value": "{{14.signals}}" },
+            { "key": "growth_weight", "value": "15" },
+            { "key": "financial_score", "value": "{{15.score}}" },
+            { "key": "financial_reasoning", "value": "{{15.reasoning}}" },
+            { "key": "financial_signals", "value": "{{15.signals}}" },
+            { "key": "financial_weight", "value": "12" },
+            { "key": "decision_maker_score", "value": "{{16.score}}" },
+            { "key": "decision_maker_reasoning", "value": "{{16.reasoning}}" },
+            { "key": "decision_maker_signals", "value": "{{16.signals}}" },
+            { "key": "decision_maker_weight", "value": "10" },
+            { "key": "network_score", "value": "{{17.score}}" },
+            { "key": "network_reasoning", "value": "{{17.reasoning}}" },
+            { "key": "network_signals", "value": "{{17.signals}}" },
+            { "key": "network_weight", "value": "8" },
+            { "key": "opportunity_score", "value": "{{18.score}}" },
+            { "key": "opportunity_reasoning", "value": "{{18.reasoning}}" },
+            { "key": "opportunity_signals", "value": "{{18.signals}}" },
+            { "key": "opportunity_weight", "value": "5" },
+            { "key": "evidence_score", "value": "{{19.score}}" },
+            { "key": "evidence_reasoning", "value": "{{19.reasoning}}" },
+            { "key": "evidence_signals", "value": "{{19.signals}}" },
+            { "key": "evidence_weight", "value": "5" },
+            { "key": "existing_composite", "value": "{{20.composite_score}}" },
+            { "key": "existing_scores_raw", "value": "{{20.scores}}" }
+          ],
+          "delimiter": "\n",
+          "composite_formula": "({{12.score}} * 0.10) + ({{13.score}} * 0.35) + ({{14.score}} * 0.15) + ({{15.score}} * 0.12) + ({{16.score}} * 0.10) + ({{17.score}} * 0.08) + ({{18.score}} * 0.05) + ({{19.score}} * 0.05)"
+        },
+        "output": {
+          "aggregated_scores": "{{21.text}}",
+          "composite_score": "{{21.composite_formula}}"
+        }
+      },
+      {
+        "id": 22,
+        "module": "http:request",
+        "label": "Consensus & Reflection (MiMo V2.5)",
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.mimo.com/v2.5/chat/completions",
+          "headers": {
+            "Authorization": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA",
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "model": "mimo-v2.5",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a consensus and reflection AI for commercial real estate scoring. Review the 8 pillar scores, weighted composite, and previous scores. Validate consistency, flag anomalies, and provide a pass/fail verdict with reasoning. Return JSON with: passed (boolean), reflection_notes, anomalies (array), adjusted_composite (number or null), recommendation."
+              },
+              {
+                "role": "user",
+                "content": "Review these scores for {{1.company_name}}:\n\nPillar Scores:\n1. Company Fit: {{12.score}}/100 (weight 10%)\n2. Move Intent: {{13.score}}/100 (weight 35%)\n3. Growth: {{14.score}}/100 (weight 15%)\n4. Financial: {{15.score}}/100 (weight 12%)\n5. Decision Maker: {{16.score}}/100 (weight 10%)\n6. Network: {{17.score}}/100 (weight 8%)\n7. Opportunity: {{18.score}}/100 (weight 5%)\n8. Evidence: {{19.score}}/100 (weight 5%)\n\nCalculated Composite: {{21.composite_score}}\nPrevious Composite: {{20.composite_score}}\n\nCheck for:\n- Internal consistency between pillars\n- Anomalies or outliers\n- Sudden changes from previous score\n- Data quality issues\n- Conflicting signals\n\nProvide pass/fail and actionable reflection."
+              }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.3,
+            "max_tokens": 3000
+          }
+        },
+        "output": {
+          "reflection_raw": "{{22.data}}"
+        }
+      },
+      {
+        "id": 23,
+        "module": "textparser:parseJSON",
+        "label": "Parse reflection result",
+        "parameters": {
+          "text": "{{22.reflection_raw}}",
+          "parseMode": "once"
+        },
+        "output": {
+          "passed": "{{23.passed}}",
+          "reflection_notes": "{{23.reflection_notes}}",
+          "anomalies": "{{23.anomalies}}",
+          "adjusted_composite": "{{23.adjusted_composite}}",
+          "recommendation": "{{23.recommendation}}"
+        }
+      },
+      {
+        "id": 24,
+        "module": "router:router",
+        "label": "Route on reflection pass/fail",
+        "parameters": {
+          "routes": [
+            {
+              "label": "Pass",
+              "condition": "{{23.passed}} === true"
+            },
+            {
+              "label": "Fail",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": 25,
+        "module": "supabase:insertRow",
+        "label": "Store score card",
+        "parameters": {
+          "connection": "Jasfo Supabase",
+          "table": "score_cards",
+          "data": {
+            "company_id": "{{1.company_id}}",
+            "company_name": "{{1.company_name}}",
+            "user_id": "{{1.user_id}}",
+            "source": "{{1.source}}",
+            "extraction_id": "{{2.id}}",
+            "composite_score": "{{23.adjusted_composite || 21.composite_formula}}",
+            "scores": {
+              "company_fit": { "score": "{{12.score}}", "reasoning": "{{12.reasoning}}", "signals": "{{12.signals}}", "weight": 10 },
+              "move_intent": { "score": "{{13.score}}", "reasoning": "{{13.reasoning}}", "signals": "{{13.signals}}", "weight": 35 },
+              "growth": { "score": "{{14.score}}", "reasoning": "{{14.reasoning}}", "signals": "{{14.signals}}", "weight": 15 },
+              "financial": { "score": "{{15.score}}", "reasoning": "{{15.reasoning}}", "signals": "{{15.signals}}", "weight": 12 },
+              "decision_maker": { "score": "{{16.score}}", "reasoning": "{{16.reasoning}}", "signals": "{{16.signals}}", "weight": 10 },
+              "network": { "score": "{{17.score}}", "reasoning": "{{17.reasoning}}", "signals": "{{17.signals}}", "weight": 8 },
+              "opportunity": { "score": "{{18.score}}", "reasoning": "{{18.reasoning}}", "signals": "{{18.signals}}", "weight": 5 },
+              "evidence": { "score": "{{19.score}}", "reasoning": "{{19.reasoning}}", "signals": "{{19.signals}}", "weight": 5 }
+            },
+            "reflection": {
+              "passed": "{{23.passed}}",
+              "notes": "{{23.reflection_notes}}",
+              "anomalies": "{{23.anomalies}}",
+              "adjusted_composite": "{{23.adjusted_composite}}",
+              "recommendation": "{{23.recommendation}}"
+            },
+            "pillar_weights": {
+              "company_fit": 10,
+              "move_intent": 35,
+              "growth": 15,
+              "financial": 12,
+              "decision_maker": 10,
+              "network": 8,
+              "opportunity": 5,
+              "evidence": 5
+            },
+            "scoring_model": "deepseek-v4-flash",
+            "reflection_model": "mimo-v2.5",
+            "status": "completed",
+            "created_at": "{{$now}}"
+          }
+        },
+        "output": {
+          "score_card_id": "{{25.id}}"
+        }
+      },
+      {
+        "id": 26,
+        "module": "supabase:updateRow",
+        "label": "Update scenario_queue status",
+        "parameters": {
+          "connection": "Jasfo Supabase",
+          "table": "scenario_queue",
+          "filter": {
+            "company_id": "{{1.company_id}}",
+            "scenario": "scoring_engine",
+            "status": "processing"
+          },
+          "data": {
+            "status": "completed",
+            "result": {
+              "score_card_id": "{{25.id}}",
+              "composite_score": "{{23.adjusted_composite || 21.composite_formula}}",
+              "reflection_passed": "{{23.passed}}",
+              "completed_at": "{{$now}}"
+            },
+            "updated_at": "{{$now}}"
+          }
+        }
+      }
+    ],
+    "connections": [
+      { "from": 1, "to": 2 },
+      { "from": 2, "to": 3 },
+      { "from": 3, "to": 4 },
+      { "from": 3, "to": 5 },
+      { "from": 3, "to": 6 },
+      { "from": 3, "to": 7 },
+      { "from": 3, "to": 8 },
+      { "from": 3, "to": 9 },
+      { "from": 3, "to": 10 },
+      { "from": 3, "to": 11 },
+      { "from": 4, "to": 12 },
+      { "from": 5, "to": 13 },
+      { "from": 6, "to": 14 },
+      { "from": 7, "to": 15 },
+      { "from": 8, "to": 16 },
+      { "from": 9, "to": 17 },
+      { "from": 10, "to": 18 },
+      { "from": 11, "to": 19 },
+      { "from": 1, "to": 20 },
+      { "from": 12, "to": 21 },
+      { "from": 13, "to": 21 },
+      { "from": 14, "to": 21 },
+      { "from": 15, "to": 21 },
+      { "from": 16, "to": 21 },
+      { "from": 17, "to": 21 },
+      { "from": 18, "to": 21 },
+      { "from": 19, "to": 21 },
+      { "from": 20, "to": 21 },
+      { "from": 21, "to": 22 },
+      { "from": 22, "to": 23 },
+      { "from": 23, "to": 24 },
+      { "from": 24, "to": 25, "route": "Pass" },
+      { "from": 24, "to": 26, "route": "Fail" },
+      { "from": 25, "to": 26 }
+    ],
+    "storage": {
+      "pillar_weights": {
+        "company_fit": 10,
+        "move_intent": 35,
+        "growth": 15,
+        "financial": 12,
+        "decision_maker": 10,
+        "network": 8,
+        "opportunity": 5,
+        "evidence": 5
+      },
+      "models": {
+        "scoring": "deepseek-v4-flash",
+        "scoring_endpoint": "https://opencode.ai/zen/go/v1/chat/completions",
+        "reflection": "mimo-v2.5",
+        "reflection_endpoint": "https://api.mimo.com/v2.5/chat/completions"
+      },
+      "secrets_required": [
+        "DEEPSEEK_API_KEY",
+        "MIMO_API_KEY"
+      ],
+      "supabase_tables": {
+        "extraction": "ai_extraction_data",
+        "scores": "score_cards",
+        "queue": "scenario_queue"
+      },
+      "version": "1.0.0",
+      "description": "8-pillar weighted scoring with DeepSeek V4 Flash, composite calculation, and MiMo V2.5 consensus/reflection. Composite = Σ(pillar_score × weight/100). Pass route stores score card; Fail route updates queue status without inserting."
+    }
+  }
+}

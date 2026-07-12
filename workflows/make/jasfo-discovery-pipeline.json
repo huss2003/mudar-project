@@ -1,0 +1,530 @@
+{
+  "name": "Jasfo - Discovery Pipeline",
+  "description": "Company discovery + Firecrawl scraping pipeline",
+  "metadata": {
+    "version": 1,
+    "scenario": {
+      "concurrency": 1,
+      "maxQueue": 100,
+      "enableRetries": true,
+      "maxRetries": 3
+    }
+  },
+  "blueprint": {
+    "modules": [
+      {
+        "id": 1,
+        "module": "webhook",
+        "version": 2,
+        "parameters": {
+          "type": "custom",
+          "data": "{\"company_name\": \"\", \"company_domain\": \"\", \"industry\": \"\", \"headquarters_city\": \"\", \"headquarters_country\": \"\", \"source\": \"\", \"scenario_queue_id\": \"\"}"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 0,
+            "y": 0,
+            "name": "Receive Company Data"
+          }
+        },
+        "processorId": "webhook",
+        "moduleId": "webhook",
+        "moduleVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "distributionId": "hesperia",
+        "distributionVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567891"
+      },
+      {
+        "id": 2,
+        "module": "router",
+        "version": 2,
+        "parameters": {},
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 200,
+            "y": 0,
+            "name": "Domain Exists?"
+          }
+        },
+        "processorId": "router",
+        "moduleId": "router",
+        "moduleVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567892",
+        "distributionId": "hesperia",
+        "distributionVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567891"
+      },
+      {
+        "id": 3,
+        "module": "makeARequest",
+        "version": 5,
+        "parameters": {},
+        "mapper": {
+          "url": "https://api.firecrawl.dev/v1/search",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer {{connection.apiKey}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\"query\": \"{{parameters.company_name}} company official website\", \"limit\": 5, \"lang\": \"en\"}",
+          "parseResponse": true,
+          "followRedirects": true
+        },
+        "metadata": {
+          "designer": {
+            "x": 400,
+            "y": -200,
+            "name": "Firecrawl Search Domain"
+          }
+        },
+        "processorId": "http",
+        "moduleId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4b",
+        "moduleVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4c",
+        "distributionId": "eleven",
+        "distributionVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4d"
+      },
+      {
+        "id": 4,
+        "module": "searchRows",
+        "version": 2,
+        "parameters": {},
+        "mapper": {
+          "tableName": "scrape_cache",
+          "filters": [
+            {
+              "key": "company_domain",
+              "type": "eq",
+              "value": "{{parameters.company_domain}}"
+            },
+            {
+              "key": "source_type",
+              "type": "eq",
+              "value": "company_profile"
+            },
+            {
+              "key": "expires_at",
+              "type": "gte",
+              "value": "{{now}}"
+            }
+          ],
+          "limit": 1,
+          "sort": [
+            {
+              "key": "created_at",
+              "direction": "desc"
+            }
+          ]
+        },
+        "metadata": {
+          "designer": {
+            "x": 600,
+            "y": 0,
+            "name": "Check Cache"
+          }
+        },
+        "processorId": "supabase",
+        "moduleId": "b2c3d4e5-f6a7-8901-bcde-f1234567890a",
+        "moduleVersionId": "b2c3d4e5-f6a7-8901-bcde-f1234567890b",
+        "distributionId": "eleven",
+        "distributionVersionId": "b2c3d4e5-f6a7-8901-bcde-f1234567890c"
+      },
+      {
+        "id": 5,
+        "module": "router",
+        "version": 2,
+        "parameters": {},
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 800,
+            "y": 0,
+            "name": "Cache Hit?"
+          }
+        },
+        "processorId": "router",
+        "moduleId": "router",
+        "moduleVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567892",
+        "distributionId": "hesperia",
+        "distributionVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567891"
+      },
+      {
+        "id": 6,
+        "module": "makeARequest",
+        "version": 5,
+        "parameters": {},
+        "mapper": {
+          "url": "https://api.firecrawl.dev/v1/crawl",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer {{connection.apiKey}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\"url\": \"https://{{parameters.company_domain}}\", \"maxDepth\": 2, \"maxPages\": 15, \"scrapeOptions\": {\"formats\": [\"markdown\", \"html\"]}}",
+          "parseResponse": true,
+          "followRedirects": true
+        },
+        "metadata": {
+          "designer": {
+            "x": 1000,
+            "y": -200,
+            "name": "Firecrawl Deep Crawl"
+          }
+        },
+        "processorId": "http",
+        "moduleId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4b",
+        "moduleVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4c",
+        "distributionId": "eleven",
+        "distributionVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4d"
+      },
+      {
+        "id": 7,
+        "module": "repeater",
+        "version": 2,
+        "parameters": {
+          "repeat": "times",
+          "times": 60,
+          "interval": 5,
+          "intervalUnit": "seconds"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 1200,
+            "y": -200,
+            "name": "Poll Crawl Status"
+          }
+        },
+        "processorId": "repeater",
+        "moduleId": "repeater",
+        "moduleVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567893",
+        "distributionId": "hesperia",
+        "distributionVersionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567891"
+      },
+      {
+        "id": 8,
+        "module": "makeARequest",
+        "version": 5,
+        "parameters": {},
+        "mapper": {
+          "url": "https://api.firecrawl.dev/v1/crawl/{{$.**.id}}",
+          "method": "GET",
+          "headers": {
+            "Authorization": "Bearer {{connection.apiKey}}"
+          },
+          "parseResponse": true
+        },
+        "metadata": {
+          "designer": {
+            "x": 1400,
+            "y": -200,
+            "name": "Check Crawl Status"
+          }
+        },
+        "processorId": "http",
+        "moduleId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4b",
+        "moduleVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4c",
+        "distributionId": "eleven",
+        "distributionVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4d"
+      },
+      {
+        "id": 9,
+        "module": "makeARequest",
+        "version": 5,
+        "parameters": {},
+        "mapper": {
+          "url": "https://api.firecrawl.dev/v1/scrape",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer {{connection.apiKey}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\"url\": \"https://{{parameters.company_domain}}/about\", \"formats\": [\"markdown\", \"rawHtml\"], \"onlyMainContent\": true}",
+          "parseResponse": true,
+          "followRedirects": true
+        },
+        "metadata": {
+          "designer": {
+            "x": 1600,
+            "y": -300,
+            "name": "Scrape About Page"
+          }
+        },
+        "processorId": "http",
+        "moduleId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4b",
+        "moduleVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4c",
+        "distributionId": "eleven",
+        "distributionVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4d"
+      },
+      {
+        "id": 10,
+        "module": "makeARequest",
+        "version": 5,
+        "parameters": {},
+        "mapper": {
+          "url": "https://api.firecrawl.dev/v1/search",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer {{connection.apiKey}}",
+            "Content-Type": "application/json"
+          },
+          "body": "{\"query\": \"{{parameters.company_name}} about us products services\", \"limit\": 10, \"lang\": \"en\", \"scrapeOptions\": {\"formats\": [\"markdown\"], \"onlyMainContent\": true}}",
+          "parseResponse": true,
+          "followRedirects": true
+        },
+        "metadata": {
+          "designer": {
+            "x": 1600,
+            "y": 100,
+            "name": "Fallback Search"
+          }
+        },
+        "processorId": "http",
+        "moduleId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4b",
+        "moduleVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4c",
+        "distributionId": "eleven",
+        "distributionVersionId": "f07c8c9c-3d7a-4e5b-a2f1-8d9e6c7b5a4d"
+      },
+      {
+        "id": 11,
+        "module": "insertRow",
+        "version": 2,
+        "parameters": {},
+        "mapper": {
+          "tableName": "scrape_cache",
+          "columns": {
+            "company_domain": "{{parameters.company_domain}}",
+            "company_name": "{{parameters.company_name}}",
+            "source_type": "company_profile",
+            "raw_data": "{{$}}",
+            "crawl_results": "{{6.$}}",
+            "about_page_data": "{{9.$}}",
+            "search_fallback_data": "{{10.$}}",
+            "created_at": "{{now}}",
+            "expires_at": "{{addDays(now, 7)}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1800,
+            "y": -100,
+            "name": "Insert into Cache"
+          }
+        },
+        "processorId": "supabase",
+        "moduleId": "c3d4e5f6-a7b8-9012-cdef-1234567890ab",
+        "moduleVersionId": "c3d4e5f6-a7b8-9012-cdef-1234567890ac",
+        "distributionId": "eleven",
+        "distributionVersionId": "b2c3d4e5-f6a7-8901-bcde-f1234567890c"
+      },
+      {
+        "id": 12,
+        "module": "updateRow",
+        "version": 2,
+        "parameters": {},
+        "mapper": {
+          "tableName": "scenario_queue",
+          "idColumn": "id",
+          "idValue": "{{parameters.scenario_queue_id}}",
+          "columns": {
+            "status": "completed",
+            "processed_at": "{{now}}",
+            "output_data": "{{11.$}}",
+            "company_domain": "{{parameters.company_domain}}",
+            "error_log": null
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 2000,
+            "y": -100,
+            "name": "Mark Queue Completed"
+          }
+        },
+        "processorId": "supabase",
+        "moduleId": "d4e5f6a7-b8c9-0123-defa-2345678901bc",
+        "moduleVersionId": "d4e5f6a7-b8c9-0123-defa-2345678901bd",
+        "distributionId": "eleven",
+        "distributionVersionId": "b2c3d4e5-f6a7-8901-bcde-f1234567890c"
+      }
+    ],
+    "connections": [
+      {
+        "id": 1,
+        "from": 1,
+        "to": 2,
+        "mapper": {},
+        "metadata": { "label": "Received data" }
+      },
+      {
+        "id": 2,
+        "from": 2,
+        "to": 3,
+        "mapper": {
+          "case": {
+            "criteria": [
+              {
+                "variable": "company_domain",
+                "operator": "is_empty",
+                "value": true
+              }
+            ]
+          }
+        },
+        "metadata": { "label": "No domain - search" }
+      },
+      {
+        "id": 3,
+        "from": 2,
+        "to": 4,
+        "mapper": {
+          "case": {
+            "criteria": [
+              {
+                "variable": "company_domain",
+                "operator": "exists_and_not_empty",
+                "value": true
+              }
+            ]
+          }
+        },
+        "metadata": { "label": "Has domain - check cache" }
+      },
+      {
+        "id": 4,
+        "from": 3,
+        "to": 4,
+        "mapper": {
+          "domain_extracted_from_search": "{{3.$}}"
+        },
+        "metadata": { "label": "Domain resolved" }
+      },
+      {
+        "id": 5,
+        "from": 4,
+        "to": 5,
+        "mapper": {},
+        "metadata": { "label": "Cache lookup result" }
+      },
+      {
+        "id": 6,
+        "from": 5,
+        "to": 6,
+        "mapper": {
+          "case": {
+            "criteria": [
+              {
+                "variable": "4.$",
+                "operator": "is_empty",
+                "value": true
+              }
+            ]
+          }
+        },
+        "metadata": { "label": "Cache miss - crawl" }
+      },
+      {
+        "id": 7,
+        "from": 5,
+        "to": 12,
+        "mapper": {
+          "case": {
+            "criteria": [
+              {
+                "variable": "4.$",
+                "operator": "exists_and_not_empty",
+                "value": true
+              }
+            ]
+          }
+        },
+        "metadata": { "label": "Cache hit - use cached" }
+      },
+      {
+        "id": 8,
+        "from": 6,
+        "to": 7,
+        "mapper": {},
+        "metadata": { "label": "Crawl initiated" }
+      },
+      {
+        "id": 9,
+        "from": 7,
+        "to": 8,
+        "mapper": {},
+        "metadata": { "label": "Poll iteration" }
+      },
+      {
+        "id": 10,
+        "from": 8,
+        "to": 9,
+        "mapper": {
+          "case": {
+            "criteria": [
+              {
+                "variable": "8.status",
+                "operator": "eq",
+                "value": "completed"
+              }
+            ]
+          }
+        },
+        "metadata": { "label": "Crawl complete" }
+      },
+      {
+        "id": 11,
+        "from": 8,
+        "to": 10,
+        "mapper": {
+          "case": {
+            "criteria": [
+              {
+                "variable": "8.status",
+                "operator": "eq",
+                "value": "failed"
+              }
+            ]
+          }
+        },
+        "metadata": { "label": "Crawl failed - fallback" }
+      },
+      {
+        "id": 12,
+        "from": 8,
+        "to": 7,
+        "mapper": {
+          "case": {
+            "criteria": [
+              {
+                "variable": "8.status",
+                "operator": "eq",
+                "value": "processing"
+              }
+            ]
+          }
+        },
+        "metadata": { "label": "Still processing - retry" }
+      },
+      {
+        "id": 13,
+        "from": 9,
+        "to": 11,
+        "mapper": {},
+        "metadata": { "label": "About page data" }
+      },
+      {
+        "id": 14,
+        "from": 10,
+        "to": 11,
+        "mapper": {},
+        "metadata": { "label": "Fallback data" }
+      },
+      {
+        "id": 15,
+        "from": 11,
+        "to": 12,
+        "mapper": {},
+        "metadata": { "label": "Cache updated" }
+      }
+    ],
+    "storage": {}
+  }
+}

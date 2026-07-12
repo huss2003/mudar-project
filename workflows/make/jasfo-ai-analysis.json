@@ -1,0 +1,246 @@
+{
+  "name": "Jasfo - AI Analysis",
+  "description": "AI-powered company analysis with DeepSeek/MiMo routing, JSON repair, and Supabase persistence",
+  "metadata": {
+    "version": 1
+  },
+  "blueprint": {
+    "modules": [
+      {
+        "id": 1,
+        "module": "webhook:receive",
+        "version": 1,
+        "parameters": {},
+        "mapper": {},
+        "metadata": {
+          "designer": { "x": 0, "y": 0 },
+          "expect": [
+            { "name": "companyName", "type": "text", "label": "Company Name", "required": true },
+            { "name": "scrapedContent", "type": "text", "label": "Scraped Content", "required": true },
+            { "name": "sourceUrl", "type": "text", "label": "Source URL", "required": false },
+            { "name": "queueId", "type": "numeric", "label": "Queue ID", "required": true }
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "module": "textaggregator",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "mode": "combine",
+          "separator": "\n\n",
+          "texts": [
+            "=== COMPANY ANALYSIS REQUEST ===",
+            "Company Name: {{1.companyName}}",
+            "Source URL: {{1.sourceUrl}}",
+            "",
+            "=== SCRAPED CONTENT ===",
+            "{{1.scrapedContent}}",
+            "",
+            "=== ANALYSIS INSTRUCTIONS ===",
+            "Analyze the above company data and scraped web content. Provide a structured business analysis as JSON with:",
+            "- companyName: string",
+            "- overview: string (2-3 sentence executive summary)",
+            "- keyFindings: array of strings (3-5 key insights)",
+            "- sentiment: enum ['positive', 'negative', 'neutral']",
+            "- strategicRecommendations: array of strings (2-3 actionable recommendations)",
+            "- riskFactors: array of strings (2-3 risks)",
+            "- summary: string (one-paragraph synthesis)"
+          ]
+        },
+        "metadata": {
+          "designer": { "x": 250, "y": 0 }
+        }
+      },
+      {
+        "id": 3,
+        "module": "http",
+        "version": 2,
+        "parameters": {},
+        "mapper": {
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "method": "POST",
+          "headers": [
+            { "key": "Authorization", "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA" },
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              { "role": "system", "content": "You are an expert business analyst and strategic consultant. Analyze company data from scraped web content and produce structured JSON analysis. Always respond with valid JSON." },
+              { "role": "user", "content": "{{2.output}}" }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.1,
+            "max_tokens": 4000
+          },
+          "parseResponse": true
+        },
+        "metadata": {
+          "designer": { "x": 500, "y": 0 }
+        }
+      },
+      {
+        "id": 4,
+        "module": "textparser",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "action": "parse",
+          "type": "json",
+          "text": "{{if(empty(3.data); 7.data.choices[0].message.content; 3.data.choices[0].message.content)}}"
+        },
+        "metadata": {
+          "designer": { "x": 750, "y": 0 }
+        }
+      },
+      {
+        "id": 5,
+        "module": "router",
+        "version": 1,
+        "parameters": {},
+        "mapper": {},
+        "metadata": {
+          "designer": { "x": 1000, "y": 0 }
+        }
+      },
+      {
+        "id": 6,
+        "module": "http",
+        "version": 2,
+        "parameters": {},
+        "mapper": {
+          "url": "https://opencode.ai/zen/go/v1/chat/completions",
+          "method": "POST",
+          "headers": [
+            { "key": "Authorization", "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA" },
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": {
+            "model": "deepseek-v4-flash",
+            "messages": [
+              { "role": "system", "content": "You are a JSON repair specialist. Fix malformed JSON and return only valid JSON. Preserve all original data values." },
+              { "role": "user", "content": "Fix this malformed JSON and return only valid JSON:\n\n{{3.data.choices[0].message.content}}" }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.0,
+            "max_tokens": 4000
+          },
+          "parseResponse": true
+        },
+        "metadata": {
+          "designer": { "x": 750, "y": -250 }
+        }
+      },
+      {
+        "id": 7,
+        "module": "http",
+        "version": 2,
+        "parameters": {},
+        "mapper": {
+          "url": "https://api.mimo.cx/v1/chat/completions",
+          "method": "POST",
+          "headers": [
+            { "key": "Authorization", "value": "Bearer sk-MmeX9RLWQrIFngobzyoLIoVjLx58ObW5ZhUmqYbwhPucZc8Nn46jQbvw4Vuf2yCA" },
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": {
+            "model": "mimo-v2.5",
+            "messages": [
+              { "role": "system", "content": "You are an expert business analyst and strategic consultant. Analyze company data from scraped web content and produce structured JSON analysis. Always respond with valid JSON." },
+              { "role": "user", "content": "{{2.output}}" }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.1,
+            "max_tokens": 4000
+          },
+          "parseResponse": true
+        },
+        "metadata": {
+          "designer": { "x": 750, "y": 250 }
+        }
+      },
+      {
+        "id": 8,
+        "module": "supabase",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "operation": "insert",
+          "tableName": "ai_extractions",
+          "record": {
+            "company_name": "{{if(empty(4.companyName); 6.data.choices[0].message.content; 4.companyName)}}",
+            "analysis_parsed": "{{if(empty(4.companyName); 6.data.choices[0].message.content; 4)}}",
+            "model_used": "{{if(empty(3.data); 'mimo-v2.5'; 'deepseek-v4-flash')}}",
+            "status": "completed",
+            "source_url": "{{1.sourceUrl}}",
+            "queue_id": "{{1.queueId}}",
+            "created_at": "{{now}}"
+          }
+        },
+        "metadata": {
+          "designer": { "x": 1250, "y": 0 }
+        }
+      },
+      {
+        "id": 9,
+        "module": "supabase",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "operation": "update",
+          "tableName": "scenario_queue",
+          "id": "{{1.queueId}}",
+          "record": {
+            "status": "completed",
+            "completed_at": "{{now}}",
+            "extraction_id": "{{8.id}}"
+          }
+        },
+        "metadata": {
+          "designer": { "x": 1500, "y": 0 }
+        }
+      }
+    ],
+    "connections": [
+      { "id": 1, "from": 1, "to": 2, "metadata": {} },
+      { "id": 2, "from": 2, "to": 3, "metadata": {} },
+      { "id": 3, "from": 3, "to": 4, "metadata": {} },
+      { "id": 4, "from": 4, "to": 5, "metadata": {} },
+      {
+        "id": 5,
+        "from": 5,
+        "to": 8,
+        "metadata": {
+          "route": 0,
+          "label": "Valid JSON",
+          "filter": { "type": "boolean", "value": "{{if(empty(4.companyName); false; true)}}", "mode": "simple" }
+        }
+      },
+      {
+        "id": 6,
+        "from": 5,
+        "to": 6,
+        "metadata": {
+          "route": 1,
+          "label": "Invalid JSON",
+          "filter": { "type": "else" }
+        }
+      },
+      { "id": 7, "from": 6, "to": 8, "metadata": {} },
+      {
+        "id": 8,
+        "from": 3,
+        "to": 7,
+        "metadata": {
+          "type": 1,
+          "label": "Error Handler"
+        }
+      },
+      { "id": 9, "from": 7, "to": 4, "metadata": {} },
+      { "id": 10, "from": 8, "to": 9, "metadata": {} }
+    ],
+    "storage": {}
+  }
+}

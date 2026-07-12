@@ -1,0 +1,432 @@
+{
+  "name": "Jasfo - Weekly Master",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "Select Companies Pending",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *, to_char(CURRENT_DATE, 'IYYY-WIW') as scheduled_week FROM company_queue WHERE status = 'pending' AND scheduled_week = to_char(CURRENT_DATE, 'IYYY-WIW')",
+        "additionalParameters": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "Validate Companies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const items = $input.all();\nconst valid = [];\nconst invalid = [];\nconst runId = new Date().toISOString().replace(/[:.]/g, '-') + '-' + Math.random().toString(36).substring(2, 8);\n\nfor (const item of items) {\n  const company = item.json;\n  const name = company.company_name;\n  if (name && typeof name === 'string' && name.trim().length >= 2) {\n    valid.push({\n      json: {\n        ...company,\n        validated: true,\n        _meta: { run_id: runId }\n      }\n    });\n  } else {\n    invalid.push({\n      json: {\n        ...company,\n        validated: false,\n        _meta: { run_id: runId },\n        validation_reason: !name ? 'Missing company name' : 'Company name too short (< 2 chars)'\n      }\n    });\n  }\n}\n\nreturn [\n  {\n    json: {\n      _meta: {\n        run_id: runId,\n        total: items.length,\n        valid_count: valid.length,\n        invalid_count: invalid.length,\n        valid_companies: valid.map(v => v.json.company_name),\n        invalid_companies: invalid.map(v => v.json.company_name)\n      }\n    }\n  },\n  ...valid,\n  ...invalid\n];"
+      }
+    },
+    {
+      "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "name": "Route Valid Companies",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [720, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.validated }}",
+              "operation": "equal",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "name": "Delete Previous Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [960, 180],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM scenario_queue WHERE run_id = $1",
+        "additionalParameters": {
+          "values": [
+            {
+              "parameterType": "expression",
+              "value": "={{ $items('Validate Companies').first().json._meta.run_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "id": "f6a7b8c9-d0e1-2345-fabc-456789012345",
+      "name": "Insert Queue Items",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1200, 180],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO scenario_queue (run_id, company_name, scenario_step, status, created_at) VALUES ($1, $2, $3, $4, NOW())",
+        "additionalParameters": {
+          "batchSize": 1,
+          "values": [
+            {
+              "parameterType": "expression",
+              "value": "={{ $items('Validate Companies').first().json._meta.run_id }}"
+            },
+            {
+              "parameterType": "expression",
+              "value": "={{ $json.company_name }}"
+            },
+            "discovery",
+            "pending"
+          ]
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "id": "a7b8c9d0-e1f2-3456-abcd-567890123456",
+      "name": "Telegram Start Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1440, 180],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ -5497421027 }}",
+        "additionalFields": {},
+        "text": "🚀 *Jasfo Weekly Run Started*\n\n*Run ID:* {{ $items('Validate Companies').first().json._meta.run_id }}\n*Companies Queued:* {{ $items('Validate Companies').first().json._meta.valid_count }}\n*Invalid Skipped:* {{ $items('Validate Companies').first().json._meta.invalid_count }}\n*Started At:* {{ $now.format('YYYY-MM-DD HH:mm:ss') }}\n\nMonitoring every 30s for up to 90min...\n\n#Jasfo #WeeklyRun"
+      },
+      "credentials": {
+        "telegram": {
+          "id": "jasfo-telegram-bot",
+          "name": "Jasfo Telegram Bot"
+        }
+      }
+    },
+    {
+      "id": "b8c9d0e1-f2a3-4567-bcde-678901234567",
+      "name": "Setup Polling Iterations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 180],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const runId = $items('Validate Companies').first().json._meta.run_id;\nconst totalExpected = $items('Validate Companies').first().json._meta.valid_count;\nconst maxIterations = 180;\nconst iterations = [];\nfor (let i = 1; i <= maxIterations; i++) {\n  iterations.push({\n    json: {\n      iteration: i,\n      run_id: runId,\n      total_expected: totalExpected,\n      max_iterations: maxIterations\n    }\n  });\n}\nreturn iterations;"
+      }
+    },
+    {
+      "id": "c9d0e1f2-a3b4-5678-cdef-789012345678",
+      "name": "Polling Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [1920, 180],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "d0e1f2a3-b4c5-6789-defa-890123456789",
+      "name": "Wait 30 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [2160, 80],
+      "parameters": {
+        "resume": "time",
+        "waitTime": 30,
+        "keepExecution": "all"
+      }
+    },
+    {
+      "id": "e1f2a3b4-c5d6-7890-efab-901234567890",
+      "name": "Check Queue Progress",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 80],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const input = $input.first().json;\nreturn {\n  json: {\n    iteration: input.iteration,\n    run_id: input.run_id,\n    checked_at: new Date().toISOString(),\n    status: 'checked'\n  }\n};"
+      }
+    },
+    {
+      "id": "e1f2a3b5-c5d6-7890-efab-901234567891",
+      "name": "Take First Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2160, 420],
+      "parameters": {
+        "language": "javaScript",
+        "code": "return [$input.first()];"
+      }
+    },
+    {
+      "id": "f2a3b4c5-d6e7-8901-fabc-012345678901",
+      "name": "Select Final Results",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2400, 420],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT status, COUNT(*)::int as count, ROUND(AVG(COALESCE(score, 0))::numeric, 2)::float as avg_score FROM scenario_queue WHERE run_id = $1 GROUP BY status ORDER BY status",
+        "additionalParameters": {
+          "values": [
+            {
+              "parameterType": "expression",
+              "value": "={{ $json.run_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "id": "a3b4c5d6-e7f8-9012-abcd-123456789012",
+      "name": "Aggregate Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2640, 420],
+      "parameters": {
+        "language": "javaScript",
+        "code": "const items = $input.all();\nconst summary = {\n  total: 0,\n  completed: 0,\n  failed: 0,\n  pending: 0,\n  skipped: 0,\n  avg_score: 0,\n  breakdown: {}\n};\nlet totalScore = 0;\nlet scoreCount = 0;\nfor (const item of items) {\n  const row = item.json;\n  const status = row.status || 'unknown';\n  const count = parseInt(row.count) || 0;\n  summary.total += count;\n  summary[status] = (summary[status] || 0) + count;\n  summary.breakdown[status] = count;\n  if (row.avg_score && count > 0) {\n    totalScore += parseFloat(row.avg_score) * count;\n    scoreCount += count;\n  }\n}\nsummary.avg_score = scoreCount > 0 ? Math.round((totalScore / scoreCount) * 100) / 100 : 0;\nsummary.completion_pct = summary.total > 0 ? Math.round((summary.completed / summary.total) * 10000) / 100 : 0;\nsummary.run_id = $items('Setup Polling Iterations').first().json.run_id;\nreturn { json: summary };"
+      }
+    },
+    {
+      "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
+      "name": "Telegram Completion Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [2880, 420],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ -5497421027 }}",
+        "additionalFields": {},
+        "text": "✅ *Jasfo Weekly Run Complete*\n\n*Run ID:* {{ $json.run_id }}\n*Total Processed:* {{ $json.total }}\n*Completed:* {{ $json.completed }}\n*Failed:* {{ $json.failed }}\n*Pending:* {{ $json.pending }}\n*Skipped:* {{ $json.skipped }}\n*Avg Score:* {{ $json.avg_score }}\n*Completion:* {{ $json.completion_pct }}%\n\n#Jasfo #WeeklyRun"
+      },
+      "credentials": {
+        "telegram": {
+          "id": "jasfo-telegram-bot",
+          "name": "Jasfo Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Select Companies Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Companies Pending": {
+      "main": [
+        [
+          {
+            "node": "Validate Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Companies": {
+      "main": [
+        [
+          {
+            "node": "Route Valid Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Valid Companies": {
+      "main": [
+        [
+          {
+            "node": "Delete Previous Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Delete Previous Queue": {
+      "main": [
+        [
+          {
+            "node": "Insert Queue Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Queue Items": {
+      "main": [
+        [
+          {
+            "node": "Telegram Start Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Start Notification": {
+      "main": [
+        [
+          {
+            "node": "Setup Polling Iterations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Polling Iterations": {
+      "main": [
+        [
+          {
+            "node": "Polling Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Polling Loop": {
+      "main": [
+        [
+          {
+            "node": "Wait 30 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Take First Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Check Queue Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take First Result": {
+      "main": [
+        [
+          {
+            "node": "Select Final Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Final Results": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Summary": {
+      "main": [
+        [
+          {
+            "node": "Telegram Completion Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "jasfo",
+      "id": "tag-jasfo"
+    },
+    {
+      "name": "weekly",
+      "id": "tag-weekly"
+    },
+    {
+      "name": "master",
+      "id": "tag-master"
+    }
+  ]
+}

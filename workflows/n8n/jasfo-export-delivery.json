@@ -1,0 +1,406 @@
+{
+  "name": "Jasfo Export & Delivery Pipeline",
+  "nodes": [
+    {
+      "id": "wb-001",
+      "name": "Receive Score Card Data",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 400],
+      "credentials": {},
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jasfo-export-delivery",
+        "responseMode": "lastNode",
+        "responseData": "allEntries",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "jasfo-export-delivery"
+    },
+    {
+      "id": "pg-scorecard",
+      "name": "Get Score Card",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [480, 150],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase DB"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM score_cards WHERE id = $1",
+        "queryParams": {
+          "values": [
+            {
+              "string": "={{ $json.score_card_id }}"
+            }
+          ]
+        },
+        "additionalFields": {
+          "nodeVersion": "2"
+        }
+      }
+    },
+    {
+      "id": "pg-aiextract",
+      "name": "Get AI Extraction",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [480, 350],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase DB"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM ai_extractions WHERE company_domain = $1 AND run_id = $2",
+        "queryParams": {
+          "values": [
+            {
+              "string": "={{ $json.company_domain }}"
+            },
+            {
+              "string": "={{ $json.run_id }}"
+            }
+          ]
+        },
+        "additionalFields": {
+          "nodeVersion": "2"
+        }
+      }
+    },
+    {
+      "id": "pg-company",
+      "name": "Get Company",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [480, 550],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase DB"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM companies WHERE domain = $1",
+        "queryParams": {
+          "values": [
+            {
+              "string": "={{ $json.company_domain }}"
+            }
+          ]
+        },
+        "additionalFields": {
+          "nodeVersion": "2"
+        }
+      }
+    },
+    {
+      "id": "merge-sca",
+      "name": "Merge Score Card + AI",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [700, 250],
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "merge"
+      }
+    },
+    {
+      "id": "merge-cmp",
+      "name": "Merge + Company Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [700, 450],
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "merge"
+      }
+    },
+    {
+      "id": "code-prep",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400],
+      "parameters": {
+        "jsCode": "// Normalize and prepare all merged data for export formatting\nconst input = $input.first().json;\n\nconst get = (field, fallback) => {\n  return input[field] !== undefined && input[field] !== null ? input[field] : fallback;\n};\n\nreturn [{\n  run_id: get('run_id', ''),\n  company_domain: get('company_domain', ''),\n  export_format: get('export_format', 'json'),\n  score_card_id: get('score_card_id', ''),\n\n  company_name: get('name', '') || get('company_name', '') || get('company', ''),\n  description: get('description', ''),\n  founded_year: get('founded_year', ''),\n  employees: get('employees', ''),\n  headquarters: get('headquarters', ''),\n  website: get('website', ''),\n  logo_url: get('logo_url', ''),\n\n  score: get('total_score', 0) || get('score', 0),\n  confidence: get('confidence', ''),\n  product_score: get('product_score', 0) || get('product', 0),\n  icp_score: get('icp_score', 0) || get('icp', 0),\n  team_score: get('team_score', 0) || get('team', 0),\n  business_model_score: get('business_model_score', 0) || get('business_model', 0),\n  funding_score: get('funding_score', 0) || get('funding', 0),\n  growth_score: get('growth_score', 0) || get('growth', 0),\n  market_score: get('market_score', 0) || get('market', 0),\n  risk_score: get('risk_score', 0) || get('risk', 0),\n\n  product_summary: get('product_summary', ''),\n  icp_analysis: get('icp_analysis', ''),\n  team_analysis: get('team_analysis', ''),\n  funding_summary: get('funding_summary', ''),\n  growth_indicators: get('growth_indicators', ''),\n  market_analysis: get('market_analysis', ''),\n  risk_factors: get('risk_factors', '') || get('risk_summary', 'No risk factors identified.'),\n  products: get('products', '[]'),\n\n  report_url: get('report_url', ''),\n}]"
+      }
+    },
+    {
+      "id": "switch-fmt",
+      "name": "Route Format",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [1100, 400],
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.export_format }}",
+        "rules": [
+          {
+            "outputKey": "json",
+            "value2": "json"
+          },
+          {
+            "outputKey": "csv",
+            "value2": "csv"
+          },
+          {
+            "outputKey": "markdown",
+            "value2": "markdown"
+          },
+          {
+            "outputKey": "telegram",
+            "value2": "telegram"
+          }
+        ],
+        "fallbackOutput": "json"
+      }
+    },
+    {
+      "id": "code-json",
+      "name": "Build JSON Export",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 100],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString();\n\nlet products = [];\ntry {\n  products = typeof d.products === 'string' ? JSON.parse(d.products || '[]') : (d.products || []);\n} catch(e) {}\n\nconst jsonOutput = {\n  export_metadata: { exported_at: ts, format: 'json', version: '1.0' },\n  run: { id: d.run_id, company_domain: d.company_domain },\n  company: {\n    name: d.company_name, domain: d.company_domain,\n    description: d.description, founded_year: d.founded_year,\n    employees: d.employees, headquarters: d.headquarters,\n    website: d.website, logo_url: d.logo_url\n  },\n  score_card: {\n    total_score: Number(d.score), confidence: d.confidence,\n    report_url: d.report_url,\n    pillars: [\n      { name: 'Product', score: Number(d.product_score) },\n      { name: 'ICP Fit', score: Number(d.icp_score) },\n      { name: 'Team', score: Number(d.team_score) },\n      { name: 'Business Model', score: Number(d.business_model_score) },\n      { name: 'Funding', score: Number(d.funding_score) },\n      { name: 'Growth', score: Number(d.growth_score) },\n      { name: 'Market', score: Number(d.market_score) },\n      { name: 'Risk', score: Number(d.risk_score) }\n    ],\n    composite: Number(d.score)\n  },\n  ai_extraction: {\n    product_summary: d.product_summary, icp_analysis: d.icp_analysis,\n    team_analysis: d.team_analysis, funding_summary: d.funding_summary,\n    growth_indicators: d.growth_indicators, market_analysis: d.market_analysis,\n    risk_factors: d.risk_factors, products\n  }\n};\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'json',\n  content: jsonOutput,\n  company_name: d.company_name,\n  score: d.score,\n  confidence: d.confidence,\n  product_score: d.product_score,\n  icp_score: d.icp_score,\n  funding_score: d.funding_score,\n  growth_score: d.growth_score,\n  report_url: d.report_url,\n  risk_factors: d.risk_factors\n}]"
+      }
+    },
+    {
+      "id": "code-csv",
+      "name": "Build CSV Export",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 250],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString();\n\nconst escape = (val) => {\n  const s = String(val || '').replace(/\"/g, '\"\"');\n  return s.includes(',') || s.includes('\"') || s.includes('\\n') ? `\"${s}\"` : s;\n};\n\nconst header = 'run_id,company_domain,company_name,composite_score,product_score,icp_score,team_score,business_model_score,funding_score,growth_score,market_score,risk_score,confidence,description,founded_year,employees,headquarters,website,report_url,exported_at';\nconst row = [\n  d.run_id, d.company_domain, d.company_name, d.score,\n  d.product_score, d.icp_score, d.team_score, d.business_model_score,\n  d.funding_score, d.growth_score, d.market_score, d.risk_score,\n  d.confidence, d.description, d.founded_year, d.employees,\n  d.headquarters, d.website, d.report_url, ts\n].map(escape).join(',');\n\nconst csvContent = header + '\\n' + row;\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'csv',\n  content: csvContent,\n  company_name: d.company_name,\n  score: d.score,\n  confidence: d.confidence,\n  product_score: d.product_score,\n  icp_score: d.icp_score,\n  funding_score: d.funding_score,\n  growth_score: d.growth_score,\n  report_url: d.report_url,\n  risk_factors: d.risk_factors\n}]"
+      }
+    },
+    {
+      "id": "code-md",
+      "name": "Build Markdown Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 400],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString().split('T')[0];\n\nconst scoreBar = (label, score, maxScore) => {\n  const filled = Math.round((Number(score) / (maxScore || 100)) * 20);\n  const bar = '█'.repeat(Math.min(filled, 20)) + '░'.repeat(Math.max(0, 20 - filled));\n  return `${label.padEnd(18)} ${String(score).padStart(3)}/100 ${bar}`;\n};\n\nlet productsSection = 'N/A';\ntry {\n  const products = typeof d.products === 'string' ? JSON.parse(d.products || '[]') : (d.products || []);\n  if (products.length > 0) {\n    productsSection = products.map(p => `- ${p.name || p.title || p}`).join('\\n');\n  }\n} catch(e) {}\n\nconst md = [\n  `# Jasfo Score Card Report`,\n  `**Company:** ${d.company_name}  `,\n  `**Domain:** ${d.company_domain}  `,\n  `**Date:** ${ts}  `,\n  `**Confidence:** ${d.confidence}  `,\n  `**Report URL:** ${d.report_url || 'N/A'}`,\n  '',\n  '---',\n  '',\n  '## Company Overview',\n  `| Field | Value |`,\n  `|-------|-------|`,\n  `| Description | ${(d.description || 'N/A').replace(/\\|/g, '\\\\|')} |`,\n  `| Founded | ${d.founded_year || 'N/A'} |`,\n  `| Employees | ${d.employees || 'N/A'} |`,\n  `| Headquarters | ${d.headquarters || 'N/A'} |`,\n  `| Website | ${d.website || 'N/A'} |`,\n  '',\n  '## Score Card',\n  `**Composite Score: ${d.score}/100**`,\n  '',\n  '| Pillar | Score | Distribution |',\n  '|--------|-------|--------------|',\n  `| Product | ${d.product_score}/100 | ${scoreBar('', d.product_score, 100).trim()} |`,\n  `| ICP Fit | ${d.icp_score}/100 | ${scoreBar('', d.icp_score, 100).trim()} |`,\n  `| Team | ${d.team_score}/100 | ${scoreBar('', d.team_score, 100).trim()} |`,\n  `| Business Model | ${d.business_model_score}/100 | ${scoreBar('', d.business_model_score, 100).trim()} |`,\n  `| Funding | ${d.funding_score}/100 | ${scoreBar('', d.funding_score, 100).trim()} |`,\n  `| Growth | ${d.growth_score}/100 | ${scoreBar('', d.growth_score, 100).trim()} |`,\n  `| Market | ${d.market_score}/100 | ${scoreBar('', d.market_score, 100).trim()} |`,\n  `| Risk | ${d.risk_score}/100 | ${scoreBar('', d.risk_score, 100).trim()} |`,\n  '',\n  '## Products',\n  productsSection,\n  '',\n  '## AI Analysis',\n  '',\n  '### Product Summary',\n  d.product_summary || 'N/A',\n  '',\n  '### ICP Analysis',\n  d.icp_analysis || 'N/A',\n  '',\n  '### Team Analysis',\n  d.team_analysis || 'N/A',\n  '',\n  '### Funding Summary',\n  d.funding_summary || 'N/A',\n  '',\n  '### Growth Indicators',\n  d.growth_indicators || 'N/A',\n  '',\n  '### Market Analysis',\n  d.market_analysis || 'N/A',\n  '',\n  '## Risk Factors',\n  d.risk_factors || 'No risk factors identified.',\n  '',\n  '---',\n  `_Generated by Jasfo Platform on ${ts}_`\n].join('\\n');\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'markdown',\n  content: md,\n  company_name: d.company_name,\n  score: d.score,\n  confidence: d.confidence,\n  product_score: d.product_score,\n  icp_score: d.icp_score,\n  funding_score: d.funding_score,\n  growth_score: d.growth_score,\n  report_url: d.report_url,\n  risk_factors: d.risk_factors\n}]"
+      }
+    },
+    {
+      "id": "code-tg",
+      "name": "Build Telegram Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 560],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst ts = new Date().toISOString();\n\nconst riskSummary = typeof d.risk_factors === 'string'\n  ? d.risk_factors.substring(0, 400)\n  : 'No risk factors identified.';\n\nconst msg = [\n  '\\u{1F4CA} *' + (d.company_name || d.company_domain) + '*',\n  '',\n  'Score: *' + d.score + '/100* \\u2014 ' + (d.confidence || 'N/A'),\n  '',\n  '*Key Pillars*',\n  'Product: ' + d.product_score + ' | ICP: ' + d.icp_score,\n  'Funding: ' + d.funding_score + ' | Growth: ' + d.growth_score,\n  '',\n  '*Risk Factors*',\n  riskSummary,\n  '',\n  '\\u{1F517} Report: ' + (d.report_url || 'N/A')\n].join('\\n');\n\nreturn [{\n  run_id: d.run_id,\n  company_domain: d.company_domain,\n  format: 'telegram',\n  content: msg,\n  text: msg,\n  chat_id: '={{ -5497421027 }}',\n  parse_mode: 'Markdown',\n  company_name: d.company_name,\n  score: d.score,\n  report_url: d.report_url\n}]"
+      }
+    },
+    {
+      "id": "tg-send",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1500, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "2",
+          "name": "Jasfo Telegram Bot"
+        }
+      },
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "={{ $json.parse_mode }}"
+        }
+      }
+    },
+    {
+      "id": "pg-archive",
+      "name": "Archive Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1500, 350],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase DB"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO report_archive (run_id, company_domain, format, content, delivered_at, delivery_status) VALUES ($1, $2, $3, $4::jsonb, NOW(), 'delivered')",
+        "queryParams": {
+          "values": [
+            { "string": "={{ $json.run_id }}" },
+            { "string": "={{ $json.company_domain }}" },
+            { "string": "={{ $json.format }}" },
+            { "string": "={{ JSON.stringify($json.content) }}" }
+          ]
+        },
+        "additionalFields": {
+          "nodeVersion": "2"
+        }
+      }
+    },
+    {
+      "id": "pg-update",
+      "name": "Update Queue Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1700, 350],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Supabase DB"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scenario_queue SET status = 'completed', updated_at = NOW() WHERE run_id = $1",
+        "queryParams": {
+          "values": [
+            { "string": "={{ $json.run_id }}" }
+          ]
+        },
+        "additionalFields": {
+          "nodeVersion": "2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Score Card Data": {
+      "main": [
+        [
+          { "node": "Get Score Card", "type": "main", "index": 0 },
+          { "node": "Get AI Extraction", "type": "main", "index": 0 },
+          { "node": "Get Company", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Score Card": {
+      "main": [
+        [
+          { "node": "Merge Score Card + AI", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get AI Extraction": {
+      "main": [
+        [
+          { "node": "Merge Score Card + AI", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Merge Score Card + AI": {
+      "main": [
+        [
+          { "node": "Merge + Company Data", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Company": {
+      "main": [
+        [
+          { "node": "Merge + Company Data", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Merge + Company Data": {
+      "main": [
+        [
+          { "node": "Prepare Data", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          { "node": "Route Format", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Route Format": {
+      "main": [
+        [
+          { "node": "Build JSON Export", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Build CSV Export", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Build Markdown Report", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Build Telegram Message", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build JSON Export": {
+      "main": [
+        [
+          { "node": "Archive Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build CSV Export": {
+      "main": [
+        [
+          { "node": "Archive Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Markdown Report": {
+      "main": [
+        [
+          { "node": "Archive Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Telegram Message": {
+      "main": [
+        [
+          { "node": "Send Telegram", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send Telegram": {
+      "main": [
+        [
+          { "node": "Archive Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Archive Report": {
+      "main": [
+        [
+          { "node": "Update Queue Status", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "UTC"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "jasfo" },
+    { "name": "export" },
+    { "name": "delivery" }
+  ]
+}

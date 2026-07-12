@@ -1,0 +1,106 @@
+{
+  "name": "Jasfo - Cost Monitor",
+  "description": "Hourly budget monitoring for Jasfo pipeline. Warns at 80% cap, alerts at 100%.",
+  "metadata": { "version": 1 },
+  "blueprint": {
+    "modules": [
+      {
+        "id": 1,
+        "module": "schedule:cron",
+        "name": "Every Hour",
+        "parameters": { "expression": "0 * * * *" },
+        "output": { "type": "trigger", "label": "execution_start" }
+      },
+      {
+        "id": 2,
+        "module": "supabase:executeQuery",
+        "name": "Query Today's Cost",
+        "parameters": {
+          "query": "SELECT layer_id, model_used, SUM(cost_cents) as total_cents, SUM(tokens_used) as total_tokens FROM cost_log WHERE recorded_at >= CURRENT_DATE GROUP BY layer_id, model_used ORDER BY layer_id"
+        },
+        "output": { "type": "array", "label": "cost_rows" }
+      },
+      {
+        "id": 3,
+        "module": "util:textparser",
+        "name": "Calculate Budget",
+        "parameters": {
+          "text": "{{replace(replace(JSON.stringify(body), '{{', ''), '}}', '')}}",
+          "parse_as": "json"
+        },
+        "output": { "type": "data", "label": "parsed_body" }
+      },
+      {
+        "id": 4,
+        "module": "util:router",
+        "name": "Budget Threshold Router",
+        "parameters": {
+          "routes": [
+            { "id": "critical", "label": "Critical (>= 100%)", "conditions": [] },
+            { "id": "warning", "label": "Warning (>= 80%)", "conditions": [] },
+            { "id": "normal", "label": "Normal (< 80%)", "conditions": [] }
+          ]
+        },
+        "output": { "type": "router", "label": "routed" }
+      },
+      {
+        "id": 5,
+        "module": "util:aggregator",
+        "name": "Build Cost Summary",
+        "parameters": { "type": "json", "structure": { "run_date": "{{formatDate(now, 'YYYY-MM-DD')}}", "total_cost_cents": 0, "by_layer": {}, "budget_percent": 0, "status": "normal" } },
+        "output": { "type": "data", "label": "summary" }
+      },
+      {
+        "id": 6,
+        "module": "telegram:sendMessage",
+        "name": "Send Warning",
+        "parameters": {
+          "chat_id": "5936648348",
+          "text": "⚠️ *Budget Warning*\n\nPipeline cost has reached {{budget_percent}}% of daily cap.\n\n*Per Layer:*\n{{#each by_layer}}{{@key}}: ${{formatNumber(this.cents / 100, 2)}}\n{{/each}}\n\n*Total:* ${{formatNumber(total_cost_cents / 100, 2)}} / $20.00",
+          "parse_mode": "Markdown"
+        },
+        "output": { "type": "message", "label": "sent" }
+      },
+      {
+        "id": 7,
+        "module": "telegram:sendMessage",
+        "name": "Send Critical Alert",
+        "parameters": {
+          "chat_id": "5936648348",
+          "text": "🚨 *Critical — Budget Exceeded*\n\nPipeline daily budget of $20.00 has been exceeded.\n\n*Total Spent:* ${{formatNumber(total_cost_cents / 100, 2)}}\n*Layer Breakdown:*\n{{#each by_layer}}{{@key}}: ${{formatNumber(this.cents / 100, 2)}}\n{{/each}}\n\n*Recommended Action:* Pause enrichment layers (8-11) until budget resets tomorrow.",
+          "parse_mode": "Markdown"
+        },
+        "output": { "type": "message", "label": "sent" }
+      },
+      {
+        "id": 8,
+        "module": "supabase:insert",
+        "name": "Log Cost Summary",
+        "parameters": {
+          "table": "cost_summary",
+          "columns": {
+            "run_date": "{{formatDate(now, 'YYYY-MM-DD')}}",
+            "total_cost_cents": 0,
+            "by_layer": {},
+            "budget_percent": 0,
+            "status": "normal",
+            "created_at": "{{now}}"
+          }
+        },
+        "output": { "type": "row", "label": "inserted" }
+      }
+    ],
+    "connections": [
+      { "id": 1, "from": 1, "to": 2, "from_port": 0, "to_port": 0 },
+      { "id": 2, "from": 2, "to": 3, "from_port": 0, "to_port": 0 },
+      { "id": 3, "from": 3, "to": 4, "from_port": 0, "to_port": 0 },
+      { "id": 4, "from": 4, "to": 7, "from_port": 0, "to_port": 0 },
+      { "id": 5, "from": 4, "to": 6, "from_port": 1, "to_port": 0 },
+      { "id": 6, "from": 6, "to": 8, "from_port": 0, "to_port": 0 },
+      { "id": 7, "from": 7, "to": 8, "from_port": 0, "to_port": 0 },
+      { "id": 8, "from": 4, "to": 5, "from_port": 2, "to_port": 0 },
+      { "id": 9, "from": 5, "to": 8, "from_port": 0, "to_port": 0 }
+    ],
+    "storage": {}
+  }
+}
