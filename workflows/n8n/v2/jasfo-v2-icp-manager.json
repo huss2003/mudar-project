@@ -45,7 +45,9 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "response": { "simplify": true }
+        }
       }
     },
     {
@@ -116,18 +118,14 @@
               "name": "icp_id",
               "value": "={{ $json.id }}"
             },
-            {
-              "name": "icp_name",
-              "value": "={{ $json.name }}"
-            },
-            {
-              "name": "status",
-              "value": "planning"
-            },
-            {
-              "name": "triggered_at",
-              "value": "={{ new Date().toISOString() }}"
-            }
+              {
+                "name": "status",
+                "value": "planning"
+              },
+              {
+                "name": "started_at",
+                "value": "={{ new Date().toISOString() }}"
+              }
           ]
         }
       }
