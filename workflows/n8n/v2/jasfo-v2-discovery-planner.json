@@ -1,12 +1,15 @@
 {
-  "name": "Jasfo v2 - Discovery Planner",
+  "name": "Jasfo v2 Discovery Planner",
   "nodes": [
     {
-      "id": "2a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d",
-      "name": "Every 15min (Mon)",
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [250, 300],
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
       "parameters": {
         "rule": {
           "interval": [
@@ -19,11 +22,14 @@
       }
     },
     {
-      "id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+      "id": "22222222-2222-2222-2222-222222222222",
       "name": "Load Pending Planner Run",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [450, 300],
+      "position": [
+        480,
+        300
+      ],
       "parameters": {
         "method": "GET",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/planner_runs?status=eq.planning&select=*&limit=1",
@@ -38,10 +44,6 @@
             {
               "name": "Authorization",
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
             }
           ]
         },
@@ -49,43 +51,38 @@
       }
     },
     {
-      "id": "2c3d4e5f-6a7b-4c9d-0e1f-2a3b4c5d6e7f",
+      "id": "33333333-3333-3333-3333-333333333333",
       "name": "Run Found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [650, 300],
+      "position": [
+        720,
+        300
+      ],
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
+          "number": [
             {
-              "id": "c1",
-              "leftValue": "={{ $json.id != null }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equal"
-              }
+              "value1": "={{ $json.length }}",
+              "operation": "larger",
+              "value2": 0
             }
-          ],
-          "combinator": "and"
+          ]
         }
       }
     },
     {
-      "id": "2d4e5f6a-7b8c-4d0e-1f2a-3b4c5d6e7f8a",
+      "id": "44444444-4444-4444-4444-444444444444",
       "name": "Load ICP Profile",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [850, 300],
+      "position": [
+        960,
+        200
+      ],
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/icp_profiles?id=eq.' + encodeURIComponent($json.icp_id) + '&select=*' }}",
+        "url": "=https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/icp_profiles?id=eq.\" + $json[0].icp_id + \"&select=*",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -97,10 +94,6 @@
             {
               "name": "Authorization",
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
             }
           ]
         },
@@ -108,22 +101,27 @@
       }
     },
     {
-      "id": "2e5f6a7b-8c9d-4e1f-2a3b-4c5d6e7f8a9b",
+      "id": "55555555-5555-5555-5555-555555555555",
       "name": "Build Planner Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1050, 300],
+      "position": [
+        1200,
+        200
+      ],
       "parameters": {
-        "language": "javaScript",
-        "jsCode": "const run = $node['Run Found?'].json;\nconst icpData = $json;\nconst icp = {\n  id: icpData.id || run.icp_id,\n  name: icpData.name || 'Unknown',\n  industry: icpData.industry || '',\n  description: icpData.description || '',\n  target_markets: icpData.target_markets || [],\n  keywords: icpData.keywords || []\n};\n\nconst prompt = `You are an ICP discovery planner for Jasfo. Plan a discovery cycle for this ICP:\n\nICP Name: ${icp.name}\nIndustry: ${icp.industry}\nDescription: ${icp.description}\nTarget Markets: ${JSON.stringify(icp.target_markets)}\nKeywords: ${JSON.stringify(icp.keywords)}\n\nRespond with JSON:\n{\n  \"strategy\": \"brief strategy\",\n  \"sources\": [\"google_maps\", \"indiamart\", \"tradeindia\", \"github\", \"rss\"],\n  \"priority_focus\": \"industry vertical\",\n  \"estimated_companies\": number\n}`;\n\nreturn [{ json: { prompt, icp_id: icp.id, run_id: run.id, icp_name: icp.name } }];"
+        "jsCode": "const run = $(\"Run Found?\").first().json;\nconst plannerRun = Array.isArray(run) ? run[0] : run;\nconst icpId = plannerRun.icp_id;\nconst runId = plannerRun.id;\n\nconst icpData = $json;\nconst icp = Array.isArray(icpData) ? icpData[0] : icpData;\n\nconst icpName = icp.name || \"Unknown\";\nconst industry = Array.isArray(icp.industry) ? icp.industry.join(\", \") : (icp.industry || \"\");\nconst keywords = Array.isArray(icp.keywords) ? icp.keywords.join(\", \") : \"\";\nconst country = Array.isArray(icp.country) ? icp.country.join(\", \") : \"\";\n\nconst prompt = `You are an ICP discovery planner. Plan a discovery cycle for:\nICP: ${icpName}\nIndustry: ${industry}\nKeywords: ${keywords}\nCountry: ${country}\n\nRespond with JSON only:\n{ \"sources\": [\"google_maps\", \"indiamart\", \"tradeindia\"], \"priority_focus\": \"industry vertical\" }`;\n\nreturn [{ json: { prompt, icp_id: icpId, run_id: runId } }];"
       }
     },
     {
-      "id": "2f6a7b8c-9d0e-4f2a-3b4c-5d6e7f8a9b0c",
-      "name": "Call OpenCode Planner",
+      "id": "66666666-6666-6666-6666-666666666666",
+      "name": "Call OpenCode GO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1250, 300],
+      "position": [
+        1440,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://opencode.ai/zen/go/v1/chat/completions",
@@ -141,8 +139,8 @@
             }
           ]
         },
+        "options": {},
         "sendBody": true,
-        "bodyContentType": "json",
         "bodyParameters": {
           "parameters": [
             {
@@ -151,7 +149,7 @@
             },
             {
               "name": "messages",
-              "value": "={{ [{ role: 'user', content: $json.prompt }] }}"
+              "value": "=[{\"role\":\"user\",\"content\":\" + $json.prompt + \"}]"
             },
             {
               "name": "temperature",
@@ -159,40 +157,47 @@
             },
             {
               "name": "max_tokens",
-              "value": 2048
+              "value": 1024
             }
           ]
         }
       }
     },
     {
-      "id": "2a7b8c9d-0e1f-4a3b-4c5d-6e7f8a9b0c1d",
+      "id": "77777777-7777-7777-7777-777777777777",
       "name": "Parse Planner Decision",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1450, 300],
+      "position": [
+        1680,
+        200
+      ],
       "parameters": {
-        "language": "javaScript",
-        "jsCode": "const response = $json;\nlet content = '';\ntry {\n  content = response.choices[0].message.content;\n} catch (e) {\n  content = response.body || JSON.stringify(response);\n}\n\nlet plan = {};\ntry {\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  plan = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);\n} catch (e) {\n  plan = { strategy: 'default', sources: ['google_maps', 'indiamart', 'tradeindia', 'github', 'rss'], priority_focus: 'general', estimated_companies: 100 };\n}\n\nconst prevNode = $node['Build Planner Prompt'].json;\nreturn [{ json: { plan, icp_id: prevNode.icp_id, run_id: prevNode.run_id, icp_name: prevNode.icp_name } }];"
+        "jsCode": "const response = $json;\nlet content = \"\";\ntry {\n  content = response.choices[0].message.content;\n} catch(e) {\n  content = JSON.stringify(response);\n}\nlet plan = {};\ntry {\n  const m = content.match(/\\{[\\s\\S]*\\}/);\n  plan = m ? JSON.parse(m[0]) : JSON.parse(content);\n} catch(e) {\n  plan = { sources: [\"google_maps\",\"indiamart\",\"tradeindia\"], priority_focus: \"general\" };\n}\nconst prevNode = $(\"Build Planner Prompt\").first().json;\nreturn [{ json: { plan, icp_id: prevNode.icp_id, run_id: prevNode.run_id } }];"
       }
     },
     {
-      "id": "2b8c9d0e-1f2a-4b3c-5d6e-7f8a9b0c1d2e",
-      "name": "Generate 50 Search Queries",
+      "id": "88888888-8888-8888-8888-888888888888",
+      "name": "Generate 50 Queries",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1650, 300],
+      "position": [
+        1920,
+        200
+      ],
       "parameters": {
-        "language": "javaScript",
-        "jsCode": "const item = $json;\nconst icpName = item.icp_name || 'target';\nconst industry = (item.plan && item.plan.priority_focus) || 'technology';\nconst sources = (item.plan && item.plan.sources) || ['google_maps', 'indiamart', 'tradeindia', 'github', 'rss'];\n\nconst geoModifiers = ['', 'in India', 'in Mumbai', 'in Delhi', 'in Bangalore', 'in Pune', 'in Hyderabad', 'in Chennai', 'in Ahmedabad', 'in Kolkata', 'in Gurgaon', 'in Noida', 'in India 2025', 'near me', 'in Maharastra', 'in Gujarat', 'in Tamil Nadu', 'in Karnataka'];\nconst intentModifiers = ['best', 'top', 'leading', 'affordable', 'professional', 'reliable', 'trusted', 'expert', 'certified', '', '', ''];\nconst industrySynonyms = [industry, industry + ' services', industry + ' solutions', industry + ' company', industry + ' provider', industry + ' consultant', industry + ' agency', industry + ' firm', industry + ' expert', industry + ' specialist'];\n\nconst queries = [];\nfor (let i = 0; i < 8 && queries.length < 50; i++) {\n  const keyword = industrySynonyms[i % industrySynonyms.length];\n  for (let j = 0; j < geoModifiers.length && queries.length < 50; j++) {\n    const geo = geoModifiers[j];\n    for (let k = 0; k < intentModifiers.length && queries.length < 50; k++) {\n      const intent = intentModifiers[k];\n      const query = [intent, keyword, geo].filter(Boolean).join(' ');\n      if (query.trim().length > 3) {\n        queries.push({\n          query: query.trim(),\n          source: sources[queries.length % sources.length],\n          icp_id: item.icp_id,\n          run_id: item.run_id\n        });\n      }\n    }\n  }\n}\n\nconst sourceCycles = ['google_maps', 'indiamart', 'tradeindia', 'github', 'rss'];\nwhile (queries.length < 50) {\n  for (const src of sourceCycles) {\n    if (queries.length >= 50) break;\n    const modifiers = ['company', 'firm', 'business', 'vendor', 'supplier', 'provider', 'agency', 'service', 'solution', 'consultant'];\n    const m = modifiers[queries.length % modifiers.length];\n    queries.push({\n      query: `${industry} ${m} ${geoModifiers[queries.length % geoModifiers.length]}`.trim(),\n      source: src,\n      icp_id: item.icp_id,\n      run_id: item.run_id\n    });\n  }\n}\n\nreturn [{ json: { queries, icp_id: item.icp_id, run_id: item.run_id, count: queries.length } }];"
+        "jsCode": "const item = $json;\nconst plan = item.plan || {};\nconst sources = plan.sources || [\"google_maps\",\"indiamart\",\"tradeindia\"];\nconst focus = plan.priority_focus || \"target\";\nconst geoModifiers = [\"\", \"in India\", \"in Mumbai\", \"in Delhi\", \"in Bangalore\", \"in Pune\"];\nconst synonyms = [\"dealer\", \"distributor\", \"supplier\", \"wholesaler\", \"retailer\", \"stockist\"];\nconst queries = [];\nfor (let i = 0; i < synonyms.length && queries.length < 50; i++) {\n  for (let j = 0; j < geoModifiers.length && queries.length < 50; j++) {\n    const q = [synonyms[i], focus, geoModifiers[j]].filter(Boolean).join(\" \");\n    if (q.trim().length > 3) {\n      queries.push({ query_text: q.trim(), source: sources[queries.length % sources.length], planner_run_id: item.run_id, intent: \"industry+location\", plan: item.plan });\n    }\n  }\n}\nreturn queries.map(q => ({ json: q }));"
       }
     },
     {
-      "id": "2c9d0e1f-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
+      "id": "99999999-9999-9999-9999-999999999999",
       "name": "Insert Search Queries",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1650, 550],
+      "position": [
+        2160,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/search_queries",
@@ -218,36 +223,52 @@
             }
           ]
         },
+        "options": {},
         "sendBody": true,
-        "bodyContentType": "json",
         "bodyParameters": {
           "parameters": [
             {
-              "name": "query",
-              "value": "={{ $json.query }}"
+              "name": "query_text",
+              "value": "={{ $json.query_text }}"
             },
             {
               "name": "source",
-              "value": "={{ $json.source_type }}"
+              "value": "={{ $json.source }}"
             },
             {
-              "name": "icp_id",
-              "value": "={{ $json.icp_id }}"
+              "name": "planner_run_id",
+              "value": "={{ $json.planner_run_id }}"
             },
             {
-              "name": "run_id",
-              "value": "={{ $json.run_id }}"
+              "name": "intent",
+              "value": "={{ $json.intent }}"
             }
           ]
         }
       }
     },
     {
-      "id": "2d0e1f2a-3b4c-5d6e-7f8a-9b0c1d2e3f4a",
+      "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "name": "Collapse to Single",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const item = $json;\nconst planNode = $(\"Parse Planner Decision\").first().json;\nreturn [{\n  json: {\n    planner_run_id: item.planner_run_id,\n    source_used: item.source || \"unknown\",\n    plan: planNode.plan || {}\n  }\n}];"
+      }
+    },
+    {
+      "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
       "name": "Insert Planner Decision",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1650, 800],
+      "position": [
+        2640,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/planner_decisions",
@@ -269,43 +290,50 @@
             },
             {
               "name": "Prefer",
-              "value": "return=representation"
+              "value": "return=minimal"
             }
           ]
         },
+        "options": {},
         "sendBody": true,
-        "bodyContentType": "json",
         "bodyParameters": {
           "parameters": [
             {
-              "name": "run_id",
-              "value": "={{ $json.run_id }}"
+              "name": "planner_run_id",
+              "value": "={{ $json.planner_run_id }}"
             },
             {
-              "name": "icp_id",
-              "value": "={{ $json.icp_id }}"
+              "name": "iteration",
+              "value": 1
             },
             {
-              "name": "plan_data",
-              "value": "={{ JSON.stringify($json.plan) }}"
+              "name": "action",
+              "value": "GENERATE_QUERIES"
             },
             {
-              "name": "status",
-              "value": "approved"
+              "name": "source_used",
+              "value": "={{ $json.source_used }}"
+            },
+            {
+              "name": "tokens_used",
+              "value": 0
             }
           ]
         }
       }
     },
     {
-      "id": "2e1f2a3b-4c5d-6e7f-8a9b-0c1d2e3f4a5b",
+      "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
       "name": "Update Run Status",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1650, 1050],
+      "position": [
+        2880,
+        200
+      ],
       "parameters": {
         "method": "PATCH",
-        "url": "={{ 'https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/planner_runs?id=eq.' + encodeURIComponent($json.run_id) }}",
+        "url": "=https://nswlrolnbvjzgbkyxrkp.supabase.co/rest/v1/planner_runs?id=eq.\" + $json.planner_run_id",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -319,21 +347,17 @@
               "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
             },
             {
-              "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zd2xyb2xuYnZqemdia3l4cmtwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzg2NDQ2MywiZXhwIjoyMDk5NDQwNDYzfQ.YpeEY5vzkrGzwnMv5wIKvGGAZYE6sTABwyLm4PGMHRk"
-            },
-            {
               "name": "Content-Type",
               "value": "application/json"
             },
             {
               "name": "Prefer",
-              "value": "return=representation"
+              "value": "return=minimal"
             }
           ]
         },
+        "options": {},
         "sendBody": true,
-        "bodyContentType": "json",
         "bodyParameters": {
           "parameters": [
             {
@@ -341,8 +365,8 @@
               "value": "executing"
             },
             {
-              "name": "updated_at",
-              "value": "={{ new Date().toISOString() }}"
+              "name": "source_plan",
+              "value": "={{ JSON.stringify($json.plan) }}"
             }
           ]
         }
@@ -350,24 +374,36 @@
     }
   ],
   "connections": {
-    "Every 15min (Mon)": {
+    "Schedule Trigger": {
       "main": [
         [
-          { "node": "Load Pending Planner Run", "type": "main", "index": 0 }
+          {
+            "node": "Load Pending Planner Run",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Load Pending Planner Run": {
       "main": [
         [
-          { "node": "Run Found?", "type": "main", "index": 0 }
+          {
+            "node": "Run Found?",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Run Found?": {
       "main": [
         [
-          { "node": "Load ICP Profile", "type": "main", "index": 0 }
+          {
+            "node": "Load ICP Profile",
+            "type": "main",
+            "index": 0
+          }
         ],
         []
       ]
@@ -375,58 +411,100 @@
     "Load ICP Profile": {
       "main": [
         [
-          { "node": "Build Planner Prompt", "type": "main", "index": 0 }
+          {
+            "node": "Build Planner Prompt",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Build Planner Prompt": {
       "main": [
         [
-          { "node": "Call OpenCode Planner", "type": "main", "index": 0 }
+          {
+            "node": "Call OpenCode GO",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Call OpenCode Planner": {
+    "Call OpenCode GO": {
       "main": [
         [
-          { "node": "Parse Planner Decision", "type": "main", "index": 0 }
+          {
+            "node": "Parse Planner Decision",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Parse Planner Decision": {
       "main": [
         [
-          { "node": "Generate 50 Search Queries", "type": "main", "index": 0 }
+          {
+            "node": "Generate 50 Queries",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
-    "Generate 50 Search Queries": {
+    "Generate 50 Queries": {
       "main": [
         [
-          { "node": "Insert Search Queries", "type": "main", "index": 0 }
+          {
+            "node": "Insert Search Queries",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Insert Search Queries": {
       "main": [
         [
-          { "node": "Insert Planner Decision", "type": "main", "index": 0 }
+          {
+            "node": "Collapse to Single",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse to Single": {
+      "main": [
+        [
+          {
+            "node": "Insert Planner Decision",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Insert Planner Decision": {
       "main": [
         [
-          { "node": "Update Run Status", "type": "main", "index": 0 }
+          {
+            "node": "Update Run Status",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "pinData": {},
+  "versionId": "v2-initial",
+  "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "timezone": "UTC",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
   },
-  "staticData": null,
   "tags": [],
-  "active": false
+  "id": "jasfo-v2-discovery-planner"
 }
