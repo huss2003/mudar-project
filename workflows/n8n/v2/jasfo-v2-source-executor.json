@@ -132,7 +132,7 @@
         "bodyParameters": {
           "parameters": [
             {
-              "name": "query",
+              "name": "query_text",
               "value": "={{ $json.body.query }}"
             },
             {
@@ -203,7 +203,7 @@
               "value": "={{ $json.domain }}"
             },
             {
-              "name": "source_type",
+              "name": "source",
               "value": "={{ $json.source }}"
             },
             {

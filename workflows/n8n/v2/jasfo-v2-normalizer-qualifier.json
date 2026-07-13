@@ -276,7 +276,7 @@
               "value": "={{ $json.company_domain }}"
             },
             {
-              "name": "source_type",
+              "name": "source",
               "value": "={{ $json.source_type }}"
             },
             {
